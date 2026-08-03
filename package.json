@@ -17,6 +17,7 @@
   "homepage": "https://github.com/aivorah24/-aivorah-e2e-tests#readme",
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "@supabase/supabase-js": "^2.112.0",
     "@types/node": "^26.1.2",
     "dotenv": "^17.4.2"
   }
