@@ -1,0 +1,22 @@
+{
+  "name": "aivorah-e2e-tests",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aivorah24/-aivorah-e2e-tests.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/aivorah24/-aivorah-e2e-tests/issues"
+  },
+  "homepage": "https://github.com/aivorah24/-aivorah-e2e-tests#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.1.2"
+  }
+}
