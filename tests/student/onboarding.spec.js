@@ -3,14 +3,18 @@
 // curriculum, school, location, grade, learning style, interests) before they
 // can reach the Dashboard.
 //
-// Test account used (fixed, reusable):
-//   Email:    e2e.onboarding@aivorah.test
-//   Password: E2eTest!2026
-// This account's email is already verified. BEFORE EACH TEST BELOW, we reset
-// this account's onboarding_completed flag back to false directly in the
-// database (see tests/helpers/resetOnboarding.js) - this guarantees every
-// test starts from the exact same "onboarding not done yet" state, instead
-// of depending on what a previous test run left behind.
+// Test account used: student-d (see tests/helpers/accounts.js - this spec
+// owns it because it writes the onboarding_completed flag). Session comes
+// from global-setup.js, same as every other spec - see CLAUDE.md's
+// "Login: reuse the session, don't re-login" rule; this file is not the
+// login spec, so it must not drive the login form itself.
+//
+// BEFORE EACH TEST BELOW, we reset this account's onboarding_completed flag
+// back to false directly in the database (see tests/helpers/resetOnboarding.js)
+// - this guarantees every test starts from the exact same "onboarding not
+// done yet" state, instead of depending on what a previous test run left
+// behind. Resetting the flag doesn't touch the login session, so the two
+// stay independent of each other.
 //
 // We test:
 // 1. Happy path -> fill every required field -> land on the Dashboard
@@ -25,19 +29,18 @@
 
 import { test, expect } from '@playwright/test';
 import { resetOnboarding } from '../helpers/resetOnboarding.js';
+import { accountFor } from '../helpers/accounts.js';
+import { newPageAs } from '../helpers/session.js';
 
-const ONBOARDING_EMAIL = 'e2e.onboarding@aivorah.test';
-const ONBOARDING_PASSWORD = 'E2eTest!2026';
+const ACCOUNT = 'student-d';
+const ONBOARDING_EMAIL = accountFor(ACCOUNT).email;
 
-// Helper: opens the app and logs in with the onboarding test account.
-async function loginAsOnboardingStudent(page) {
+// Helper: opens a browser tab already logged in as the onboarding test
+// account (session harvested once in global-setup.js) and lands on '/'.
+async function openAsOnboardingStudent(browser) {
+  const page = await newPageAs(browser, ACCOUNT);
   await page.goto('/');
-  const landingFrame = page.frameLocator('iframe');
-  await landingFrame.getByRole('button', { name: 'Login' }).click();
-
-  await page.getByRole('textbox', { name: 'you@example.com' }).fill(ONBOARDING_EMAIL);
-  await page.getByRole('textbox', { name: '••••••••' }).fill(ONBOARDING_PASSWORD);
-  await page.getByText('Sign In', { exact: true }).click();
+  return page;
 }
 
 // Each of these fills in ONE section of the onboarding form. Splitting them
@@ -121,8 +124,8 @@ test.describe('Student Onboarding', () => {
   });
 
   // TEST 1: filling every step correctly should land the student on the Dashboard
-  test('completing onboarding reaches the dashboard', async ({ page }) => {
-    await loginAsOnboardingStudent(page);
+  test('completing onboarding reaches the dashboard', async ({ browser }) => {
+    const page = await openAsOnboardingStudent(browser);
     await completeOnboardingForm(page);
 
     await expect(page.getByText(/Good (morning|afternoon|evening),/).first()).toBeVisible({
@@ -135,8 +138,8 @@ test.describe('Student Onboarding', () => {
   const requiredFields = ['name', 'gender', 'dob', 'curriculum', 'school', 'location', 'grade'];
 
   for (const field of requiredFields) {
-    test(`leaving ${field} empty blocks onboarding`, async ({ page }) => {
-      await loginAsOnboardingStudent(page);
+    test(`leaving ${field} empty blocks onboarding`, async ({ browser }) => {
+      const page = await openAsOnboardingStudent(browser);
       await completeOnboardingForm(page, { skip: field });
 
       // Should NOT reach the Dashboard - still stuck on the onboarding page.
@@ -153,9 +156,9 @@ test.describe('Student Onboarding', () => {
   // up RED/failing in results until the app actually adds this validation -
   // that's intentional, it's how we track the bug is still unfixed.
   test('grade and date of birth mismatch should be blocked (known bug - not implemented yet)', async ({
-    page,
+    browser,
   }) => {
-    await loginAsOnboardingStudent(page);
+    const page = await openAsOnboardingStudent(browser);
     await completeOnboardingForm(page); // DOB = 2 Feb 2005, Grade = Grade 3 (mismatched on purpose)
 
     await expect(
