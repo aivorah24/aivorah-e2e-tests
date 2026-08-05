@@ -43,7 +43,6 @@ async function pickDateOfBirth(page, age) {
 }
 
 test.describe('Student Email Sign Up', () => {
-
   // TEST 1: leaving the name empty should block signup with a message
   test('empty name shows validation error', async ({ page }) => {
     await openSignupModal(page);
@@ -107,5 +106,4 @@ test.describe('Student Email Sign Up', () => {
     // The app's actual heading here is "Check your inbox" (not "Check your email").
     await expect(page.getByText('Check your inbox')).toBeVisible({ timeout: 10000 });
   });
-
 });

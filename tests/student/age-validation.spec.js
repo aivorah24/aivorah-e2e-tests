@@ -26,7 +26,6 @@ async function pickDateOfBirth(page, age) {
 }
 
 test.describe('Student Age Validation', () => {
-
   // TEST 1: age 13 (under 14) should be blocked
   test('student under 14 cannot sign up', async ({ page }) => {
     await openSignupModal(page);
@@ -39,7 +38,9 @@ test.describe('Student Age Validation', () => {
     await page.getByText('Create Free Account', { exact: true }).click();
 
     await expect(
-      page.getByText('Students under 14 cannot self-register. Please ask your parent or teacher to create your account.')
+      page.getByText(
+        'Students under 14 cannot self-register. Please ask your parent or teacher to create your account.',
+      ),
     ).toBeVisible();
   });
 
@@ -57,5 +58,4 @@ test.describe('Student Age Validation', () => {
     // Success looks the same as a normal signup - the "Check your inbox" screen appears.
     await expect(page.getByText('Check your inbox')).toBeVisible({ timeout: 10000 });
   });
-
 });

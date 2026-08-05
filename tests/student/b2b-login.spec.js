@@ -31,7 +31,6 @@ async function openLoginModal(page) {
 }
 
 test.describe('Student B2B Login', () => {
-
   // TEST 1: correct email + password should log the student in
   test('correct login goes to student dashboard', async ({ page }) => {
     await openLoginModal(page);
@@ -52,9 +51,9 @@ test.describe('Student B2B Login', () => {
     // Two elements can match this text at once (a placeholder version without
     // the name, then the real one with the name) - .first() just means
     // "whichever one shows up first is fine, we're only checking a greeting appeared".
-    await expect(
-      page.getByText(/Good (morning|afternoon|evening),/).first()
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Good (morning|afternoon|evening),/).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   // TEST 2: wrong password should show an error, NOT log the student in
@@ -67,9 +66,7 @@ test.describe('Student B2B Login', () => {
 
     // The app shows either "Incorrect password." or "Invalid email or password."
     // depending on which error the server sends back - we accept either.
-    await expect(
-      page.getByText(/Incorrect password\.|Invalid email or password\./)
-    ).toBeVisible();
+    await expect(page.getByText(/Incorrect password\.|Invalid email or password\./)).toBeVisible();
   });
 
   // TEST 3: leaving email and password empty should show a validation message
@@ -81,5 +78,4 @@ test.describe('Student B2B Login', () => {
 
     await expect(page.getByText('Please fill in all fields.')).toBeVisible();
   });
-
 });
