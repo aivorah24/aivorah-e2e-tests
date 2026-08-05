@@ -64,7 +64,19 @@ export const ACCOUNTS = {
   },
   'student-b': { email: process.env.E2E_STUDENT_B, role: 'student', school: 'TSRA', mutable: true },
   'student-c': { email: process.env.E2E_STUDENT_C, role: 'student', school: 'TSRA', mutable: true },
-  'student-d': { email: process.env.E2E_STUDENT_D, role: 'student', school: 'TSRA', mutable: true },
+  // student-d1..d9: one account per onboarding test (see OWNERSHIP below).
+  // Onboarding writes the onboarding_completed flag, and the 9 onboarding
+  // tests all run in parallel - sharing one account meant one test's reset
+  // or completed-onboarding state stomped on another mid-run.
+  'student-d1': { email: process.env.E2E_STUDENT_D1, role: 'student', school: 'TSRA', mutable: true },
+  'student-d2': { email: process.env.E2E_STUDENT_D2, role: 'student', school: 'TSRA', mutable: true },
+  'student-d3': { email: process.env.E2E_STUDENT_D3, role: 'student', school: 'TSRA', mutable: true },
+  'student-d4': { email: process.env.E2E_STUDENT_D4, role: 'student', school: 'TSRA', mutable: true },
+  'student-d5': { email: process.env.E2E_STUDENT_D5, role: 'student', school: 'TSRA', mutable: true },
+  'student-d6': { email: process.env.E2E_STUDENT_D6, role: 'student', school: 'TSRA', mutable: true },
+  'student-d7': { email: process.env.E2E_STUDENT_D7, role: 'student', school: 'TSRA', mutable: true },
+  'student-d8': { email: process.env.E2E_STUDENT_D8, role: 'student', school: 'TSRA', mutable: true },
+  'student-d9': { email: process.env.E2E_STUDENT_D9, role: 'student', school: 'TSRA', mutable: true },
   'student-e': { email: process.env.E2E_STUDENT_E, role: 'student', school: 'TSRA', mutable: true },
   'student-f': { email: process.env.E2E_STUDENT_F, role: 'student', school: 'TSRA', mutable: true },
   'student-g': { email: process.env.E2E_STUDENT_G, role: 'student', school: 'TSRA', mutable: true },
@@ -81,7 +93,8 @@ export const OWNERSHIP = {
     'tests/student/profile.spec.js    (avatar style, learning style, interests - these write user_preferences, not the popup fields)',
   'student-h':
     'tests/student/profile.spec.js    (profile photo only - the avatar test deletes the photo, so it cannot share with student-g)',
-  'student-d': 'tests/student/onboarding.spec.js (onboarding_completed flag)',
+  'student-d1..d9':
+    'tests/student/onboarding.spec.js (one account per test - onboarding_completed flag)',
   'student-e': 'parent screen-time tests         (lock flag written by parent-b)',
   'student-f': 'parent screen-time tests         (lock flag written by parent-c)',
   'teacher-b': 'teacher profile/settings tests',

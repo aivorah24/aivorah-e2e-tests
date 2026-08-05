@@ -3,18 +3,27 @@
 // curriculum, school, location, grade, learning style, interests) before they
 // can reach the Dashboard.
 //
-// Test account used: student-d (see tests/helpers/accounts.js - this spec
-// owns it because it writes the onboarding_completed flag). Session comes
-// from global-setup.js, same as every other spec - see CLAUDE.md's
-// "Login: reuse the session, don't re-login" rule; this file is not the
-// login spec, so it must not drive the login form itself.
+// Test accounts used: student-d1 through student-d9, ONE PER TEST (see
+// tests/helpers/accounts.js - this spec owns them because each writes the
+// onboarding_completed flag). Session comes from global-setup.js, same as
+// every other spec - see CLAUDE.md's "Login: reuse the session, don't
+// re-login" rule; this file is not the login spec, so it must not drive the
+// login form itself.
 //
-// BEFORE EACH TEST BELOW, we reset this account's onboarding_completed flag
-// back to false directly in the database (see tests/helpers/resetOnboarding.js)
-// - this guarantees every test starts from the exact same "onboarding not
-// done yet" state, instead of depending on what a previous test run left
-// behind. Resetting the flag doesn't touch the login session, so the two
-// stay independent of each other.
+// Why 9 accounts and not 1: all 9 tests run in PARALLEL, and every one of
+// them resets onboarding_completed then fills/submits the form. With a single
+// shared account, one test's reset or completed-onboarding state would stomp
+// on another mid-run - a test could still be filling the form when a parallel
+// test's beforeEach reset the flag underneath it, so the page changed out
+// from under it and selectors like "Your name" stopped matching. Giving each
+// test its own account removes the collision entirely.
+//
+// BEFORE EACH TEST BELOW, we reset that test's account's onboarding_completed
+// flag back to false directly in the database (see
+// tests/helpers/resetOnboarding.js) - this guarantees every test starts from
+// the exact same "onboarding not done yet" state, instead of depending on
+// what a previous test run left behind. Resetting the flag doesn't touch the
+// login session, so the two stay independent of each other.
 //
 // We test:
 // 1. Happy path -> fill every required field -> land on the Dashboard
@@ -32,13 +41,23 @@ import { resetOnboarding } from '../helpers/resetOnboarding.js';
 import { accountFor } from '../helpers/accounts.js';
 import { newPageAs } from '../helpers/session.js';
 
-const ACCOUNT = 'student-d';
-const ONBOARDING_EMAIL = accountFor(ACCOUNT).email;
+// One dedicated account per test - see the note above on why.
+const ACCOUNTS = {
+  happyPath: 'student-d1',
+  name: 'student-d2',
+  gender: 'student-d3',
+  dob: 'student-d4',
+  curriculum: 'student-d5',
+  school: 'student-d6',
+  location: 'student-d7',
+  grade: 'student-d8',
+  gradeDobMismatch: 'student-d9',
+};
 
-// Helper: opens a browser tab already logged in as the onboarding test
+// Helper: opens a browser tab already logged in as the given onboarding
 // account (session harvested once in global-setup.js) and lands on '/'.
-async function openAsOnboardingStudent(browser) {
-  const page = await newPageAs(browser, ACCOUNT);
+async function openAsOnboardingStudent(browser, accountKey) {
+  const page = await newPageAs(browser, accountKey);
   await page.goto('/');
   return page;
 }
@@ -116,16 +135,18 @@ async function completeOnboardingForm(page, { skip } = {}) {
 }
 
 test.describe('Student Onboarding', () => {
-  // This runs before EVERY test below - it resets our test account's
-  // onboarding status in the database so each test starts fresh, the same
-  // way every time, no matter what an earlier test run did to this account.
-  test.beforeEach(async () => {
-    await resetOnboarding(ONBOARDING_EMAIL);
-  });
+  // Each test resets its OWN account's onboarding status in the database
+  // before it runs, so it starts fresh no matter what an earlier run left
+  // behind. This can't be a shared beforeEach anymore, since which account
+  // to reset depends on which test is about to run.
+  async function resetFor(accountKey) {
+    await resetOnboarding(accountFor(accountKey).email);
+  }
 
   // TEST 1: filling every step correctly should land the student on the Dashboard
   test('completing onboarding reaches the dashboard', async ({ browser }) => {
-    const page = await openAsOnboardingStudent(browser);
+    await resetFor(ACCOUNTS.happyPath);
+    const page = await openAsOnboardingStudent(browser, ACCOUNTS.happyPath);
     await completeOnboardingForm(page);
 
     await expect(page.getByText(/Good (morning|afternoon|evening),/).first()).toBeVisible({
@@ -139,7 +160,9 @@ test.describe('Student Onboarding', () => {
 
   for (const field of requiredFields) {
     test(`leaving ${field} empty blocks onboarding`, async ({ browser }) => {
-      const page = await openAsOnboardingStudent(browser);
+      const accountKey = ACCOUNTS[field];
+      await resetFor(accountKey);
+      const page = await openAsOnboardingStudent(browser, accountKey);
       await completeOnboardingForm(page, { skip: field });
 
       // Should NOT reach the Dashboard - still stuck on the onboarding page.
@@ -158,7 +181,8 @@ test.describe('Student Onboarding', () => {
   test('grade and date of birth mismatch should be blocked (known bug - not implemented yet)', async ({
     browser,
   }) => {
-    const page = await openAsOnboardingStudent(browser);
+    await resetFor(ACCOUNTS.gradeDobMismatch);
+    const page = await openAsOnboardingStudent(browser, ACCOUNTS.gradeDobMismatch);
     await completeOnboardingForm(page); // DOB = 2 Feb 2005, Grade = Grade 3 (mismatched on purpose)
 
     await expect(
