@@ -13,8 +13,15 @@
 // of depending on what a previous test run left behind.
 //
 // We test:
-// 1. Happy path -> fill every onboarding step -> land on the Dashboard
-// 2. Empty required field (name) -> blocked with a validation message
+// 1. Happy path -> fill every required field -> land on the Dashboard
+// 2. Each required field left empty, one at a time -> should NOT reach
+//    the Dashboard (Complete Setup stays blocked)
+// 3. A known bug: the form lets you pick a Grade and a Date of Birth that
+//    don't match (e.g. Grade 3 with a DOB that makes the student 15) -
+//    it should warn/block this but currently doesn't. We keep this test
+//    even though it fails, to document the gap until it's fixed.
+//
+// NOTE: "Use my location" is not tested here - see git history/PR for why.
 
 import { test, expect } from '@playwright/test';
 import { resetOnboarding } from '../helpers/resetOnboarding.js';
@@ -23,8 +30,6 @@ const ONBOARDING_EMAIL = 'e2e.onboarding@aivorah.test';
 const ONBOARDING_PASSWORD = 'E2eTest!2026';
 
 // Helper: opens the app and logs in with the onboarding test account.
-// Same pattern as b2b-login.spec.js - Login button lives inside an iframe,
-// the real login popup opens outside it.
 async function loginAsOnboardingStudent(page) {
   await page.goto('/');
   const landingFrame = page.frameLocator('iframe');
@@ -35,61 +40,79 @@ async function loginAsOnboardingStudent(page) {
   await page.getByText('Sign In', { exact: true }).click();
 }
 
-// Helper: fills every step of the onboarding form and finishes it.
-// Each getByText/getByRole call below matches an option we picked while
-// recording the flow with Playwright's codegen tool - these are real values
-// from the onboarding form, not placeholders.
-async function completeOnboardingForm(page) {
-  // Step: name
+// Each of these fills in ONE section of the onboarding form. Splitting them
+// up (instead of one big function) lets each test skip exactly one step,
+// to check that missing field actually blocks Complete Setup.
+async function fillName(page) {
   await page.getByRole('textbox', { name: 'Your name' }).fill('Saimohan');
+}
 
-  // Step: gender
+async function fillGender(page) {
   await page.getByText('Male', { exact: true }).click();
+}
 
-  // Step: date of birth - opens a calendar dialog with 3 pickers in order:
-  // click the year in the header to open a year list -> picking a year opens
-  // a month list -> picking a month opens the day grid we click into.
+// Opens a calendar dialog with 3 pickers in order: click the year in the
+// header to open a year list -> picking a year opens a month list ->
+// picking a month opens the day grid we click into.
+async function fillDateOfBirth(page) {
   await page.getByText('DD / MM / YYYY').click();
   await page.getByText('2011', { exact: true }).click();
   await page.getByText('2005', { exact: true }).click();
   await page.getByText('Feb', { exact: true }).click();
   await page.getByText('2', { exact: true }).click();
+}
 
-  // Step: curriculum
+async function fillCurriculum(page) {
   await page.getByText('IB PYP', { exact: true }).click();
+}
 
-  // Step: school name (free-text search field)
+async function fillSchoolName(page) {
   const schoolInput = page.getByRole('textbox', { name: 'Type your school name (e.g.' });
   await schoolInput.click();
   await schoolInput.fill('The Shri Ram Academy');
+}
 
-  // Step: location - use device location to auto-fill the city, then pick
-  // a state from the dropdown ourselves. We don't hardcode a state name
-  // (like "Karnataka") here because real geolocation detects whatever
-  // network/location the test is actually running from - it won't be the
-  // same every time. Instead we just open the dropdown and pick whichever
-  // state appears first, so the test still fills the field either way.
-  await page.getByText('Use my location').click();
+// City only becomes pickable once a state is chosen, so this fills both.
+async function fillStateAndCity(page) {
   await page.getByText('Select your state').click();
-  await page.getByText('Andaman and Nicobar Islands').click();
+  await page.getByPlaceholder('Search state...').fill('Telangana');
+  await page.getByText('Telangana', { exact: true }).click();
+  await page.getByText('Select your city').click();
+  await page.getByText('Hyderabad', { exact: true }).click();
+}
 
-  // Step: grade
+async function fillGrade(page) {
   await page.getByText('Grade 3').click();
+}
 
-  // Step: learning style
+async function fillLearningStyle(page) {
   await page.getByText('Casual').click();
+}
 
-  // Step: interests
+async function fillInterests(page) {
   await page.getByText('Reading', { exact: true }).click();
+}
 
-  // Final step: save everything and go to the Dashboard.
+// Fills every step of the onboarding form and clicks Complete Setup.
+// Pass a field name in `skip` to leave that one step out (used by the
+// empty-field tests below).
+async function completeOnboardingForm(page, { skip } = {}) {
+  if (skip !== 'name') await fillName(page);
+  if (skip !== 'gender') await fillGender(page);
+  if (skip !== 'dob') await fillDateOfBirth(page);
+  if (skip !== 'curriculum') await fillCurriculum(page);
+  if (skip !== 'school') await fillSchoolName(page);
+  if (skip !== 'location') await fillStateAndCity(page);
+  if (skip !== 'grade') await fillGrade(page);
+  if (skip !== 'learningStyle') await fillLearningStyle(page);
+  if (skip !== 'interests') await fillInterests(page);
+
   // This form is a single page (not a step wizard) - "Complete Setup" is
   // the one button at the bottom that submits everything at once.
   await page.getByText('Complete Setup').click();
 }
 
 test.describe('Student Onboarding', () => {
-
   // This runs before EVERY test below - it resets our test account's
   // onboarding status in the database so each test starts fresh, the same
   // way every time, no matter what an earlier test run did to this account.
@@ -102,16 +125,41 @@ test.describe('Student Onboarding', () => {
     await loginAsOnboardingStudent(page);
     await completeOnboardingForm(page);
 
-    await expect(
-      page.getByText(/Good (morning|afternoon|evening),/).first()
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Good (morning|afternoon|evening),/).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
-  // TEST 2 (validation error) is not written yet - the onboarding form has
-  // no "Continue" button like we assumed. It's one page with a single
-  // "Complete Setup" button at the bottom, and it looks like that button
-  // may just stay disabled until required sections are filled, rather than
-  // showing a click-triggered error message. We need to see TEST 1 pass and
-  // inspect the real disabled/error behavior before writing this correctly.
+  // TESTS 2a-2h: leaving ONE required field empty should NOT let the
+  // student reach the Dashboard - Complete Setup should stay blocked.
+  const requiredFields = ['name', 'gender', 'dob', 'curriculum', 'school', 'location', 'grade'];
 
+  for (const field of requiredFields) {
+    test(`leaving ${field} empty blocks onboarding`, async ({ page }) => {
+      await loginAsOnboardingStudent(page);
+      await completeOnboardingForm(page, { skip: field });
+
+      // Should NOT reach the Dashboard - still stuck on the onboarding page.
+      await expect(page.getByText(/Good (morning|afternoon|evening),/).first()).not.toBeVisible({
+        timeout: 5000,
+      });
+    });
+  }
+
+  // TEST 3 (KNOWN BUG): the app should not let you pick a Grade and Date of
+  // Birth that don't realistically match (e.g. Grade 3 with a DOB that
+  // makes the student 15 years old), but today it lets you through anyway.
+  // This test is written for the CORRECT/expected behavior, so it will show
+  // up RED/failing in results until the app actually adds this validation -
+  // that's intentional, it's how we track the bug is still unfixed.
+  test('grade and date of birth mismatch should be blocked (known bug - not implemented yet)', async ({
+    page,
+  }) => {
+    await loginAsOnboardingStudent(page);
+    await completeOnboardingForm(page); // DOB = 2 Feb 2005, Grade = Grade 3 (mismatched on purpose)
+
+    await expect(
+      page.getByText(/does not match|doesn't match|check the date of birth/i),
+    ).toBeVisible({ timeout: 5000 });
+  });
 });

@@ -7,6 +7,11 @@ import { defineConfig, devices } from '@playwright/test';
  */
 import dotenv from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// __dirname doesn't exist in ES modules (this file uses import/export),
+// so we rebuild it from the file's own URL instead.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 /**
@@ -16,6 +21,11 @@ export default defineConfig({
   testDir: './tests',
   /* Run tests in files in parallel */
   fullyParallel: true,
+  /* Snapshot the shared demo account before the run, put it back after.
+     Runs once for the whole run, not once per worker - see the comments in
+     tests/global-setup.js for why that matters when tests run in parallel. */
+  globalSetup: './tests/global-setup.js',
+  globalTeardown: './tests/global-teardown.js',
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
