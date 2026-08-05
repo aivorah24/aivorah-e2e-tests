@@ -9,7 +9,7 @@ Running log of what's tested and passing, updated after each test run.
 | b2b-login.spec.js | 3 | passing |
 | email-signup.spec.js | 4 | passing |
 | age-validation.spec.js | 2 | passing |
-| onboarding.spec.js | 9 | 8 passing, 1 known bug (grade/DOB mismatch not validated) |
+| onboarding.spec.js | 9 | 8 passing, 1 known bug (grade/DOB mismatch not validated) — see note below on the account-collision fix |
 | dashboard.spec.js | 11 | 10 passing, 1 known bug (subject lists don't match). Display name test is FLAKY — app race, see below |
 | dashboard-photo.spec.js | 1 | passing (headed) |
 | profile.spec.js | 26 | 25 passing, 1 known app gap (Cambridge missing Grade 11/12 — intentionally red) |
@@ -97,6 +97,28 @@ bug — fields reverting to their old values — but it's the tests fighting.
 
 Fix used here: one test that fills the whole form and saves once. Check how the
 screen actually saves before writing per-field tests for teacher/parent/admin.
+
+## Onboarding tests need one account each, not one shared account (real collision, not flakiness)
+onboarding.spec.js originally shared a single account (student-d) across all 9
+tests. Once login stopped driving the UI form (session reuse instead), the 9
+tests started running close enough together that one test's `resetOnboarding()`
+or completed-onboarding state would land while another test was still mid-fill
+on the same account — the page changed out from under it and selectors like
+"Your name" stopped matching, timing out.
+
+Fix: each test now gets its own dedicated account (**student-d1** through
+**student-d9**, one per test), added to `tests/helpers/accounts.js` and seeded
+via `seed-e2e-suite.js` in the Aivorah app repo (that script's `ACCOUNTS` map
+needed the same 9 entries added before seeding would create them). The old
+`student-d` env var/account is left in place, unused, rather than deleted.
+
+## PR #4 merged (2026-08-05)
+"Student email signup, age validation, onboarding tests + session-reuse infra" —
+covers b2b-login, email-signup, age-validation, onboarding, plus the
+global-setup/teardown + session/auth/account helper infra every other spec
+depends on. Still uncommitted, waiting on separate PRs: `profile.spec.js`,
+`dashboard.spec.js`, `dashboard-photo.spec.js`, `learning-paths.spec.js`,
+`tests/fixtures/`.
 
 ## Suite setup
 - All tests run in parallel, each fully independent (see CLAUDE.md).
