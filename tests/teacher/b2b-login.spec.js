@@ -7,28 +7,11 @@
 // 3. Empty email/password -> "fill in all fields" message shows
 
 import { test, expect } from '@playwright/test';
+import { openLoginModal } from '../helpers/loginModal.js';
 
 // Read the real login credentials from our .env file (never hardcoded here).
 const TEACHER_EMAIL = process.env.B2B_TEACHER_EMAIL;
 const TEACHER_PASSWORD = process.env.B2B_TEACHER_PASSWORD;
-
-// This little helper function does the repeated steps:
-// 1. Open the app
-// 2. Click "Login" (this button lives inside an iframe on the landing page)
-// 3. Wait for the real Login popup (modal) to appear
-async function openLoginModal(page) {
-  // Go to the homepage (baseURL is already set to http://localhost:3006 in config)
-  await page.goto('/');
-
-  // The landing page shows an <iframe> with its own "Login" button inside it.
-  // Playwright needs a special command (frameLocator) to "reach inside" an iframe.
-  const landingFrame = page.frameLocator('iframe');
-  await landingFrame.getByRole('button', { name: 'Login' }).click();
-
-  // Clicking that button opens the REAL login popup, which lives OUTSIDE the iframe,
-  // directly on the main page. We wait for its "Email address" field to appear.
-  await expect(page.getByPlaceholder('you@example.com')).toBeVisible();
-}
 
 test.describe('Teacher B2B Login', () => {
   // TEST 1: correct email + password should log the teacher in
