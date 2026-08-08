@@ -54,6 +54,38 @@ export const ACCOUNTS = {
   'parent-a': { email: process.env.E2E_PARENT_A, role: 'parent', school: 'TSRA', mutable: false },
   'parent-b': { email: process.env.E2E_PARENT_B, role: 'parent', school: 'TSRA', mutable: true },
   'parent-c': { email: process.env.E2E_PARENT_C, role: 'parent', school: 'TSRA', mutable: true },
+  'parent-d': { email: process.env.E2E_PARENT_D, role: 'parent', school: 'TSRA', mutable: true },
+  // Read-only - the only parent linked to TWO children (student-a,
+  // student-b), for the Parent Dashboard child-switching spec.
+  'parent-e': { email: process.env.E2E_PARENT_E, role: 'parent', school: 'TSRA', mutable: false },
+  // Mutable - dedicated to the Weekly Snapshot spec (writes to
+  // student-parent-f). Separate from parent-e (order-sensitive child-switching
+  // test) and parent-d (owned by the Challenges spec).
+  'parent-f': { email: process.env.E2E_PARENT_F, role: 'parent', school: 'TSRA', mutable: true },
+  // Mutable - dedicated to the Achievements spec (pushes student-parent-g
+  // past each badge threshold via real API calls). Separate account so
+  // streak/XP mutations here can't collide with parent-d/parent-f's own.
+  'parent-g': { email: process.env.E2E_PARENT_G, role: 'parent', school: 'TSRA', mutable: true },
+  // Read-only - deliberately has zero linked children, for the Parent
+  // Dashboard empty/error-state specs (same role teacher-b plays for the
+  // teacher-dashboard empty-state spec).
+  'parent-h': { email: process.env.E2E_PARENT_H, role: 'parent', school: 'TSRA', mutable: false },
+  // parent-f2..f7 - each dedicated to exactly ONE weekly-snapshot.spec.js
+  // test that mutates student_stats fields (currentStreak/xpPoints/
+  // studyTimeMinutes) via absolute PUT sets. Splitting these out is what
+  // lets that file's 7 tests run in parallel instead of serial - see
+  // OWNERSHIP below for which test owns which.
+  'parent-f2': { email: process.env.E2E_PARENT_F2, role: 'parent', school: 'TSRA', mutable: true },
+  'parent-f3': { email: process.env.E2E_PARENT_F3, role: 'parent', school: 'TSRA', mutable: true },
+  'parent-f4': { email: process.env.E2E_PARENT_F4, role: 'parent', school: 'TSRA', mutable: true },
+  'parent-f5': { email: process.env.E2E_PARENT_F5, role: 'parent', school: 'TSRA', mutable: true },
+  'parent-f6': { email: process.env.E2E_PARENT_F6, role: 'parent', school: 'TSRA', mutable: true },
+  'parent-f7': { email: process.env.E2E_PARENT_F7, role: 'parent', school: 'TSRA', mutable: true },
+  // Mutable - dedicated to the Parent Profile spec (PATCHes its own name/
+  // phone/location via PATCH /user/profile). Linked read-only to student-a
+  // for the Activity Overview card's "N kids" count - never mutates
+  // student-a itself.
+  'parent-i': { email: process.env.E2E_PARENT_I, role: 'parent', school: 'TSRA', mutable: true },
 
   // ── student ──
   'student-a': {
@@ -68,19 +100,139 @@ export const ACCOUNTS = {
   // Onboarding writes the onboarding_completed flag, and the 9 onboarding
   // tests all run in parallel - sharing one account meant one test's reset
   // or completed-onboarding state stomped on another mid-run.
-  'student-d1': { email: process.env.E2E_STUDENT_D1, role: 'student', school: 'TSRA', mutable: true },
-  'student-d2': { email: process.env.E2E_STUDENT_D2, role: 'student', school: 'TSRA', mutable: true },
-  'student-d3': { email: process.env.E2E_STUDENT_D3, role: 'student', school: 'TSRA', mutable: true },
-  'student-d4': { email: process.env.E2E_STUDENT_D4, role: 'student', school: 'TSRA', mutable: true },
-  'student-d5': { email: process.env.E2E_STUDENT_D5, role: 'student', school: 'TSRA', mutable: true },
-  'student-d6': { email: process.env.E2E_STUDENT_D6, role: 'student', school: 'TSRA', mutable: true },
-  'student-d7': { email: process.env.E2E_STUDENT_D7, role: 'student', school: 'TSRA', mutable: true },
-  'student-d8': { email: process.env.E2E_STUDENT_D8, role: 'student', school: 'TSRA', mutable: true },
-  'student-d9': { email: process.env.E2E_STUDENT_D9, role: 'student', school: 'TSRA', mutable: true },
+  'student-d1': {
+    email: process.env.E2E_STUDENT_D1,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-d2': {
+    email: process.env.E2E_STUDENT_D2,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-d3': {
+    email: process.env.E2E_STUDENT_D3,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-d4': {
+    email: process.env.E2E_STUDENT_D4,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-d5': {
+    email: process.env.E2E_STUDENT_D5,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-d6': {
+    email: process.env.E2E_STUDENT_D6,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-d7': {
+    email: process.env.E2E_STUDENT_D7,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-d8': {
+    email: process.env.E2E_STUDENT_D8,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-d9': {
+    email: process.env.E2E_STUDENT_D9,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
   'student-e': { email: process.env.E2E_STUDENT_E, role: 'student', school: 'TSRA', mutable: true },
   'student-f': { email: process.env.E2E_STUDENT_F, role: 'student', school: 'TSRA', mutable: true },
   'student-g': { email: process.env.E2E_STUDENT_G, role: 'student', school: 'TSRA', mutable: true },
   'student-h': { email: process.env.E2E_STUDENT_H, role: 'student', school: 'TSRA', mutable: true },
+  // Linked to teacher-a for Mathematics (see TEACHER_LINKS in seed-e2e-suite.js) -
+  // the only student account wired to a teacher, so teacher-dashboard analytics
+  // specs (Learning Path / Assignment / Challenge) can drive real activity and
+  // check it reflects on teacher-a's dashboard.
+  'student-teacher-a': {
+    email: process.env.E2E_STUDENT_TEACHER_A,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  // Linked to parent-d, CBSE/Grade 3 (same reason as student-teacher-a - the
+  // `challenges` table has zero rows for NCERT), so the Parent Challenges
+  // spec can assign/complete real challenges without disturbing parent-a
+  // (shared, read-only, NCERT - always empty-state for challenges).
+  'student-parent-d': {
+    email: process.env.E2E_STUDENT_PARENT_D,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  // Linked to parent-f only - dedicated to the Weekly Snapshot spec's
+  // study-time/topic-completion mutations.
+  'student-parent-f': {
+    email: process.env.E2E_STUDENT_PARENT_F,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  // Linked to parent-g only - starts with zero achievement badges; the
+  // Achievements spec pushes it past each threshold and checks the badge
+  // unlocks.
+  'student-parent-g': {
+    email: process.env.E2E_STUDENT_PARENT_G,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  // Linked to parent-f2..f7 respectively (one pair per weekly-snapshot.spec.js
+  // test) - see parent-f2..f7's comment above.
+  'student-parent-f2': {
+    email: process.env.E2E_STUDENT_PARENT_F2,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-parent-f3': {
+    email: process.env.E2E_STUDENT_PARENT_F3,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-parent-f4': {
+    email: process.env.E2E_STUDENT_PARENT_F4,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-parent-f5': {
+    email: process.env.E2E_STUDENT_PARENT_F5,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-parent-f6': {
+    email: process.env.E2E_STUDENT_PARENT_F6,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  'student-parent-f7': {
+    email: process.env.E2E_STUDENT_PARENT_F7,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
 };
 
 // Which spec file owns which mutable account. Keeping this written down means
@@ -102,6 +254,30 @@ export const OWNERSHIP = {
   'parent-b': 'parent controls tests            (writes to student-e)',
   'parent-c': 'parent controls tests            (writes to student-f)',
   'admin-b': 'school-admin mutation tests       (create/delete student)',
+  'student-teacher-a':
+    'tests/teacher/*-analytics.spec.js (Learning Path / Assignment / Challenge dashboard analytics)',
+  'parent-d':
+    'tests/parent/challenges/challenges.spec.js (assign/complete a challenge, writes to student-parent-d)',
+  'student-parent-d': 'tests/parent/challenges/challenges.spec.js (assigned/completed by parent-d)',
+  'parent-f': 'weekly-snapshot.spec.js (topic + study-time -> Learning Journey/Mission/Growth)',
+  'student-parent-f': 'weekly-snapshot.spec.js (mutated by parent-f)',
+  'parent-f2': 'weekly-snapshot.spec.js (Attendance Record display + marking)',
+  'student-parent-f2': 'weekly-snapshot.spec.js (mutated by parent-f2)',
+  'parent-f3': 'weekly-snapshot.spec.js (Activity Overview graph, study-time)',
+  'student-parent-f3': 'weekly-snapshot.spec.js (mutated by parent-f3)',
+  'parent-f4': 'weekly-snapshot.spec.js (Subject Performance quiz)',
+  'student-parent-f4': 'weekly-snapshot.spec.js (mutated by parent-f4)',
+  'parent-f5': 'weekly-snapshot.spec.js (Learning Mood, currentStreak)',
+  'student-parent-f5': 'weekly-snapshot.spec.js (mutated by parent-f5)',
+  'parent-f6': 'weekly-snapshot.spec.js (Learning Highlights, xpPoints+currentStreak)',
+  'student-parent-f6': 'weekly-snapshot.spec.js (mutated by parent-f6)',
+  'parent-f7': 'weekly-snapshot.spec.js (Top Interest/Learning Style/AI Insight)',
+  'student-parent-f7': 'weekly-snapshot.spec.js (mutated by parent-f7)',
+  'parent-i': 'tests/parent/profile/profile.spec.js (PATCHes its own name/phone/location)',
+  'parent-g':
+    'tests/parent/dashboard/achievements/achievements.spec.js (writes to student-parent-g)',
+  'student-parent-g':
+    'tests/parent/dashboard/achievements/achievements.spec.js (mutated by parent-g)',
 };
 
 export function accountFor(key) {
