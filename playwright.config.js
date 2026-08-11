@@ -30,10 +30,15 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Every test must run in parallel with no dependency on another test's
+     state (see tests/helpers/accounts.js's mutable-account convention) -
+     CI runs fully parallel too, same as local. */
+  workers: undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
+  /* Where videos/traces/screenshots land - a plain folder you can open and
+     watch, instead of digging through the default test-results/ layout. */
+  outputDir: 'recordings',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
@@ -41,6 +46,10 @@ export default defineConfig({
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
+
+    /* Record a video of every test run (kept for both passes and failures)
+       so you can watch back what happened. */
+    video: 'on',
   },
 
   /* Configure projects for major browsers */
@@ -48,6 +57,41 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      // Mic tests need fake-device launch args (below) - run only under
+      // chromium-mic so they don't run twice.
+      testIgnore: /ai-coach-mic\.spec\.js/,
+    },
+
+    // Separate project for the AI Coach mic tests only. Chromium's fake
+    // media stream feeds the SAME fixture file into every getUserMedia()
+    // call for the whole browser process, so it can't be scoped to one
+    // test/page - it has to live in its own project instead, otherwise
+    // every other test in the suite would "hear" this file too.
+    //
+    // channel: 'chrome' (real installed Google Chrome, not Playwright's
+    // bundled Chromium) is required here - confirmed by a direct check:
+    // AICoachScreen.tsx's mic feature uses the browser's built-in
+    // SpeechRecognition/webkitSpeechRecognition, whose cloud recognition
+    // endpoint needs a private Google API key that's only baked into
+    // official Chrome builds. On bundled Chromium, recognition.start()
+    // never fires onstart/onresult/onerror/onend at all (silently hangs);
+    // on real Chrome it does. Needs Chrome installed on whatever machine
+    // runs this project.
+    {
+      name: 'chromium-mic',
+      testMatch: /ai-coach-mic\.spec\.js/,
+      use: {
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        permissions: ['microphone'],
+        launchOptions: {
+          args: [
+            '--use-fake-device-for-media-stream',
+            '--use-fake-ui-for-media-stream',
+            `--use-file-for-fake-audio-capture=${path.resolve(__dirname, 'tests/fixtures/audio/Recording-6.wav')}`,
+          ],
+        },
+      },
     },
 
     // {
@@ -88,4 +132,3 @@ export default defineConfig({
   //   reuseExistingServer: !process.env.CI,
   // },
 });
-

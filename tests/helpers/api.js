@@ -192,6 +192,21 @@ export async function listChallenges(request, { grade, curriculum, studentId }) 
   return res.json();
 }
 
+// Lists challenges assigned to a student ACROSS ALL grades/curricula (GET
+// /challenges/assigned?studentId=...) - the same second call
+// ChallengesScreen.tsx's fetchChallenges() makes and merges into its
+// grade-filtered list, so a challenge a parent/teacher assigned from a
+// different grade still shows under the Assigned tab. Needed alongside
+// listChallenges() to compute a real expected Assigned count - using
+// listChallenges() alone undercounts it.
+export async function listAssignedChallenges(request, { studentId }) {
+  const res = await request.get(`/challenges/assigned?studentId=${studentId}`);
+  if (!res.ok()) {
+    throw new Error(`GET /challenges/assigned failed: ${res.status()}`);
+  }
+  return res.json();
+}
+
 // Assigns a challenge to a student, the same way a teacher's "Assign
 // Challenge" flow does (POST /challenges/assign).
 export async function assignChallenge(request, { challengeId, studentId, teacherId }) {
@@ -236,6 +251,52 @@ export async function setStudentStats(request, studentId, patch) {
   return res.json();
 }
 
+// Read-only lookup of a student's current stats row - used to snapshot a
+// value BEFORE a test overwrites it via setStudentStats, so the test can
+// restore it afterward instead of leaving a permanent side effect on a
+// shared account.
+export async function getStudentStats(request, studentId) {
+  const res = await request.get(`/student/${studentId}`);
+  if (!res.ok()) {
+    throw new Error(`GET /student/${studentId} failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+// Resolves a user's own DB id from their email - read-only despite the verb:
+// PATCH /user/profile with no patch fields beyond `email` takes the
+// "nothing to update, just fetch the existing row" branch (see routes/
+// user.js), so this never writes anything. Used for accounts with no
+// parent/teacher link to resolve their id through (student-j has neither -
+// getChildIdByParentEmail/getStudentIdByEmail both require one).
+export async function getUserIdByEmail(request, email) {
+  const res = await request.patch('/user/profile', { data: { email } });
+  if (!res.ok()) {
+    throw new Error(`PATCH /user/profile (lookup) failed: ${res.status()} ${await res.text()}`);
+  }
+  const data = await res.json();
+  if (!data?.id) throw new Error(`No user id returned for ${email}`);
+  return data.id;
+}
+
+// Assigns a challenge the same way the STUDENT'S OWN Challenges screen does
+// when auto-assigning on first "Start Challenge" tap (assignedById is the
+// student's own email, assignedByRole: 'student' - see startChallenge() in
+// ChallengesScreen.tsx). Also used as test setup to reset a challenge that a
+// PREVIOUS run already completed back to 'assigned' - POST /challenges/assign
+// resets a completed row instead of rejecting it (routes/challenges.js), so
+// this keeps challenge-flow tests repeatable against the small fixed pool
+// without ever needing a database wipe between runs.
+export async function assignChallengeAsStudent(request, { challengeId, studentId, studentEmail }) {
+  const res = await request.post('/challenges/assign', {
+    data: { challengeId, studentId, assignedById: studentEmail, assignedByRole: 'student' },
+  });
+  if (!res.ok()) {
+    throw new Error(`POST /challenges/assign failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
 // Completes an assigned challenge as a student (POST /challenges/:id/complete).
 export async function completeChallenge(request, assignmentId, { studentId, score }) {
   const res = await request.post(`/challenges/${assignmentId}/complete`, {
@@ -245,6 +306,125 @@ export async function completeChallenge(request, assignmentId, { studentId, scor
     throw new Error(
       `POST /challenges/${assignmentId}/complete failed: ${res.status()} ${await res.text()}`,
     );
+  }
+  return res.json();
+}
+
+// ── Schedule (tests/student/schedule/*.spec.js) ─────────────────────────────
+
+// Creates a schedule event the same way ScheduleScreen.tsx's addEvent() does
+// (POST /schedule) - used for SETUP (seeding deterministic events to filter/
+// assert against), not as the thing under test. Real required fields per
+// routes/schedule.js: title, date, startTime, studentId (endTime/tag/note
+// are optional server-side, even though the Add Event modal's UI implies tag
+// is required with its asterisk - confirmed by reading the POST handler).
+export async function createScheduleEvent(
+  request,
+  { title, date, startTime, endTime, studentId, tag, note, type },
+) {
+  const res = await request.post('/schedule', {
+    data: {
+      title,
+      date,
+      startTime,
+      endTime: endTime ?? '',
+      studentId,
+      createdBy: studentId,
+      tag: tag ?? null,
+      note: note ?? '',
+      type: type ?? 'study',
+    },
+  });
+  if (!res.ok()) {
+    throw new Error(`POST /schedule failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+// Deletes a schedule event (DELETE /schedule/:id) - used for CLEANUP after a
+// test creates one via the real UI, so events don't pile up across repeated
+// runs against student-k's small fixed calendar.
+export async function deleteScheduleEvent(request, id) {
+  const res = await request.delete(`/schedule/${id}`);
+  if (!res.ok()) {
+    throw new Error(`DELETE /schedule/${id} failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+// Reads a student's real events for one day (GET /schedule) - a read-only
+// expected-value lookup (see CLAUDE.md), used to compute what the UI SHOULD
+// show, never as the test's own assertion.
+export async function getScheduleForDate(request, { studentId, date, hideCompleted = false }) {
+  const res = await request.get(
+    `/schedule?studentId=${studentId}&date=${date}&hideCompleted=${hideCompleted}`,
+  );
+  if (!res.ok()) {
+    throw new Error(`GET /schedule failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+// ── The World & You (tests/student/world-and-you/*.spec.js) ────────────────
+
+// Reads a student's current xp_points (GET /student/:id) - a read-only
+// expected-value lookup used to compute an XP delta around the World & You
+// quiz (DailyTidbitCard.tsx's handleAnswer() POSTs to /daily-tidbit/quiz-
+// complete on the last question, which adds `correct * 10` to xp_points -
+// confirmed by reading routes/daily-tidbit.js directly).
+//
+// CAUTION: this endpoint is not purely read-only server-side - if
+// last_active_date isn't today yet, it also resets today_xp/today_study_minutes
+// and bumps current_streak as a side effect (confirmed by reading routes/
+// student.js's GET /:id). xp_points itself is never touched by that reset
+// branch, so a before/after xp_points delta is still safe and deterministic,
+// but do not reuse this helper to read today_xp/current_streak expecting it
+// to be side-effect-free.
+export async function getStudentXp(request, studentId) {
+  const res = await request.get(`/student/${studentId}`);
+  if (!res.ok()) {
+    throw new Error(`GET /student/${studentId} failed: ${res.status()} ${await res.text()}`);
+  }
+  const data = await res.json();
+  return data.xpPoints ?? 0;
+}
+
+// Read-only expected-value lookup: the exact same data DailyHabitsScreen.tsx
+// itself fetches on load (GET /habits/today?userEmail=), used to compute
+// real expected streak/coins/task-count values to compare the UI against -
+// never as the test's actual assertion (see CLAUDE.md's E2E Persona Rule).
+export async function getHabitsToday(request, userEmail) {
+  const res = await request.get(`/habits/today?userEmail=${encodeURIComponent(userEmail)}`);
+  if (!res.ok()) {
+    throw new Error(`GET /habits/today failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+// Creates a real parent-assigned daily task the same way
+// ParentDailyHabitsScreen's own "Add Task" flow does (POST /habits/parent-
+// tasks) - setup only. Habits are parent-assigned-only (DailyHabitsScreen.tsx's
+// own comment: "Parent-assigned tasks (only source of habits)"), so a
+// student-side habits test has no other way to get a real habit on screen.
+export async function createHabitTask(request, { parentEmail, childId, label, icon, coins }) {
+  const res = await request.post('/habits/parent-tasks', {
+    data: { parentEmail, childId, label, icon, coins },
+  });
+  if (!res.ok()) {
+    throw new Error(`POST /habits/parent-tasks failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+// Deletes a habit task by id (POST /habits/parent-tasks/:taskId) - used for
+// per-test cleanup, scoped to exactly the task(s) a given test created (same
+// per-test-not-file-wide cleanup convention schedule-filters.spec.js uses,
+// since this repo's fullyParallel config means other tests may be creating
+// their own tasks for the same shared account at the same time).
+export async function deleteHabitTask(request, taskId) {
+  const res = await request.delete(`/habits/parent-tasks/${taskId}`);
+  if (!res.ok()) {
+    throw new Error(`DELETE /habits/parent-tasks/${taskId} failed: ${res.status()} ${await res.text()}`);
   }
   return res.json();
 }

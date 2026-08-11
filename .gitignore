@@ -151,6 +151,7 @@ vite.config.ts.timestamp-*
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+/recordings/
 
 # Saved login sessions (real auth tokens) and the account snapshot taken at the
 # start of a run. Both are regenerated every run - never commit either.
