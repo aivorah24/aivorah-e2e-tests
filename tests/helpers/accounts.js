@@ -158,6 +158,50 @@ export const ACCOUNTS = {
   'student-f': { email: process.env.E2E_STUDENT_F, role: 'student', school: 'TSRA', mutable: true },
   'student-g': { email: process.env.E2E_STUDENT_G, role: 'student', school: 'TSRA', mutable: true },
   'student-h': { email: process.env.E2E_STUDENT_H, role: 'student', school: 'TSRA', mutable: true },
+  // Dedicated to the AI Coach spec (sends real chat messages, which likely
+  // updates activity/topic stats via exploreTopic() - isolated so it can't
+  // collide with student-a (shared, read-only) or any other spec's account).
+  'student-i': { email: process.env.E2E_STUDENT_I, role: 'student', school: 'TSRA', mutable: true },
+  // IB PYP/Grade 4, dedicated to tests/student/challenges/*.spec.js - own
+  // starting/completing/timer flow mutates XP, challengesCompleted and
+  // streak. Deliberately IB PYP/Grade 4, not CBSE: 19 of its 22 challenges
+  // have questions pre-stored in challenge_questions (served instantly, no
+  // AI call) - CBSE/Grade 3+ has none at all and falls through to on-demand
+  // Groq generation every time (routes/ncert.js), which broke under a
+  // rate-limited key (see challenges.spec.js's pickChallenge() for the
+  // excluded 3 IDs that still need AI). Not linked to any parent/teacher -
+  // the student's own Challenges screen assigns to itself directly
+  // (assignedByRole: 'student').
+  'student-j': { email: process.env.E2E_STUDENT_J, role: 'student', school: 'TSRA', mutable: true },
+  // Dedicated to tests/student/schedule/*.spec.js - creates/deletes real
+  // schedule events via the Schedule screen's own Add Event modal. Isolated
+  // so those mutations can't collide with any other spec's account.
+  'student-k': { email: process.env.E2E_STUDENT_K, role: 'student', school: 'TSRA', mutable: true },
+  // Dedicated to tests/student/world-and-you/*.spec.js - completing the
+  // Current Affairs quiz awards real XP via POST /daily-tidbit/quiz-complete
+  // (xp_points += correct*10, see api.js's getStudentXp comment). Isolated so
+  // those XP writes can't collide with student-i's/student-j's own XP
+  // mutations or any other spec's account.
+  //
+  // NOT YET SEEDED: add E2E_STUDENT_L to .env and add this account to
+  // server/scripts/seed-e2e-accounts.js before running tests/student/
+  // world-and-you/*.spec.js - see the spec file's own header comment.
+  'student-l': { email: process.env.E2E_STUDENT_L, role: 'student', school: 'TSRA', mutable: true },
+  // Dedicated to world-and-you.spec.js's "reopening the quiz after
+  // completing it today ..." test - split out from student-l because that
+  // test also completes the real Current Affairs quiz for real XP, and
+  // running both tests in parallel on one account raced their
+  // xpBefore/xpAfter deltas (see student-l3's comment - same root cause).
+  // Seeded via server/scripts/seed-student-l2.js.
+  'student-l2': { email: process.env.E2E_STUDENT_L2, role: 'student', school: 'TSRA', mutable: true },
+  // Dedicated to world-and-you.spec.js's "completion persists across a full
+  // page refresh on the same day" test - same isolation reason as
+  // student-l2: this test also completes the real quiz for real XP, and
+  // three parallel tests (student-l's own completion test, this one, and
+  // student-l2's) racing on one shared account produced a false XP-mismatch
+  // failure (confirmed 2026-08-10, "Expected: 380, Received: 400").
+  // Seeded via server/scripts/seed-student-l3.js.
+  'student-l3': { email: process.env.E2E_STUDENT_L3, role: 'student', school: 'TSRA', mutable: true },
   // Linked to teacher-a for Mathematics (see TEACHER_LINKS in seed-e2e-suite.js) -
   // the only student account wired to a teacher, so teacher-dashboard analytics
   // specs (Learning Path / Assignment / Challenge) can drive real activity and
@@ -244,7 +288,8 @@ export const OWNERSHIP = {
   'student-g':
     'tests/student/profile.spec.js    (avatar style, learning style, interests - these write user_preferences, not the popup fields)',
   'student-h':
-    'tests/student/profile.spec.js    (profile photo only - the avatar test deletes the photo, so it cannot share with student-g)',
+    'tests/student/profile.spec.js    (profile photo only - the avatar test deletes the photo, so it cannot share with student-g); ' +
+    'ALSO tests/student/leaderboard/leaderboard.spec.js (temporarily sets xpPoints to force rank #1, restores original value in a finally block - non-overlapping field, safe to share)',
   'student-d1..d9':
     'tests/student/onboarding.spec.js (one account per test - onboarding_completed flag)',
   'student-e': 'parent screen-time tests         (lock flag written by parent-b)',
@@ -257,12 +302,24 @@ export const OWNERSHIP = {
   'student-teacher-a':
     'tests/teacher/*-analytics.spec.js (Learning Path / Assignment / Challenge dashboard analytics)',
   'parent-d':
-    'tests/parent/challenges/challenges.spec.js (assign/complete a challenge, writes to student-parent-d)',
-  'student-parent-d': 'tests/parent/challenges/challenges.spec.js (assigned/completed by parent-d)',
-  'parent-f': 'weekly-snapshot.spec.js (topic + study-time -> Learning Journey/Mission/Growth)',
-  'student-parent-f': 'weekly-snapshot.spec.js (mutated by parent-f)',
-  'parent-f2': 'weekly-snapshot.spec.js (Attendance Record display + marking)',
-  'student-parent-f2': 'weekly-snapshot.spec.js (mutated by parent-f2)',
+    'tests/parent/challenges/challenges.spec.js (assign/complete a challenge, writes to student-parent-d); ' +
+    'ALSO tests/student/daily-habits/daily-habits.spec.js (creates parent_daily_tasks for student-parent-d) - ' +
+    'safe to share: habits_checkins/parent_daily_tasks/student_preferences.total_coins is a completely separate ' +
+    "domain from challenge_assignments/student_stats, confirmed by reading both features' routes before reusing this pair.",
+  'student-parent-d':
+    'tests/parent/challenges/challenges.spec.js (assigned/completed by parent-d); ' +
+    'ALSO tests/student/daily-habits/daily-habits.spec.js (own habit checkins/coins) - see parent-d note above.',
+  'parent-f':
+    'weekly-snapshot.spec.js (topic + study-time -> Learning Journey/Mission/Growth); ' +
+    'ALSO tests/student/daily-habits/daily-habits.spec.js (owns the "checking a habit" test - ' +
+    'needs sole ownership of Today/Total Coins aggregates, see that file\'s isolation note)',
+  'student-parent-f':
+    'weekly-snapshot.spec.js (mutated by parent-f); ALSO daily-habits.spec.js (checking test)',
+  'parent-f2':
+    'weekly-snapshot.spec.js (Attendance Record display + marking); ' +
+    'ALSO tests/student/daily-habits/daily-habits.spec.js (owns the "persistence across reload" test)',
+  'student-parent-f2':
+    'weekly-snapshot.spec.js (mutated by parent-f2); ALSO daily-habits.spec.js (persistence test)',
   'parent-f3': 'weekly-snapshot.spec.js (Activity Overview graph, study-time)',
   'student-parent-f3': 'weekly-snapshot.spec.js (mutated by parent-f3)',
   'parent-f4': 'weekly-snapshot.spec.js (Subject Performance quiz)',
@@ -275,9 +332,22 @@ export const OWNERSHIP = {
   'student-parent-f7': 'weekly-snapshot.spec.js (mutated by parent-f7)',
   'parent-i': 'tests/parent/profile/profile.spec.js (PATCHes its own name/phone/location)',
   'parent-g':
-    'tests/parent/dashboard/achievements/achievements.spec.js (writes to student-parent-g)',
+    'tests/parent/dashboard/achievements/achievements.spec.js (writes to student-parent-g); ' +
+    'ALSO tests/student/daily-habits/daily-habits.spec.js (owns the "unchecking a habit" test)',
   'student-parent-g':
-    'tests/parent/dashboard/achievements/achievements.spec.js (mutated by parent-g)',
+    'tests/parent/dashboard/achievements/achievements.spec.js (mutated by parent-g); ' +
+    'ALSO daily-habits.spec.js (unchecking test)',
+  'student-i': 'tests/student/ai-coach/*.spec.js (sends real chat messages via the AI Coach UI)',
+  'student-j':
+    'tests/student/challenges/*.spec.js (starts/answers/submits challenges via its own Challenges screen)',
+  'student-k':
+    'tests/student/schedule/*.spec.js (creates/deletes schedule events via its own Schedule screen)',
+  'student-l':
+    'tests/student/world-and-you/*.spec.js (completes the Current Affairs quiz via its own UI, awarding real XP)',
+  'student-l2':
+    'tests/student/world-and-you/*.spec.js ("reopening the quiz after completing it today" - completes the quiz for real, isolated from student-l)',
+  'student-l3':
+    'tests/student/world-and-you/*.spec.js ("completion persists across a full page refresh" - completes the quiz for real, isolated from student-l/student-l2)',
 };
 
 export function accountFor(key) {
