@@ -20,10 +20,8 @@ The learning feature is a flow, not a screen, so it's split by step:
 
 | Layer | File | State |
 |---|---|---|
-| 1. Learning Paths | `learning-paths.spec.js` | done — 10 passing |
-| 2. Subject Syllabus | `subject-syllabus.spec.js` | not started |
-| 3. Lesson | `lesson.spec.js` | not started |
-| 4. Quiz | `quiz.spec.js` | not started |
+| 1. Learning Paths | `learning-paths.spec.js` | **⚠ status uncertain** — claims 10 passing, but relies on `page.getByTestId('subject-card-name')`, which no longer exists anywhere in the app source as of 2026-08-12 (confirmed by repo-wide grep). Either a regression or a branch/build mismatch — needs re-running/checking before trusting this row. |
+| 2-4. Subject Syllabus / Lesson / Quiz (combined) | `tests/student/learning-path/learning-path.spec.js` | **written 2026-08-12, NOT YET RUN** (explicit instruction for this task). Covers chapter→topic navigation, reference textbook panel, simplified content, Listen/audio, Ask Aivorah (in-topic + off-topic guardrail), Practice, and progress — one file instead of three, since one lesson screen owns all of these tabs. Uses new dedicated account `student-m` (CBSE/Grade 6 — no other suite account is Grade 6). Several locators (chat send button, all Practice-quiz controls) are unverified against a live DOM (no testIDs exist on any of these screens, and adding them was out of scope for this task) — flagged inline in the spec and owed a first real run before merging. |
 | 5. Math engine (different flow) | `math-learning.spec.js` | not started |
 
 Useful facts found while writing Layer 1:
@@ -139,6 +137,78 @@ depends on. Still uncommitted, waiting on separate PRs: `profile.spec.js`,
 - That batch loop uses `Promise.allSettled`, not `Promise.all`. With `all`, the
   first failed login closed the browser under the others still running, and their
   crashes hid the real reason. Now failures are reported per account.
+
+## Assignments (2026-08-13)
+`tests/student/assignments/assignments.spec.js` — 12 tests, **all passing**.
+Covers page load (title/subtitle/summary cards/tabs), Pending/Completed/Ready
+counts against a real API read, tab filtering, empty state (Completed tab),
+a genuinely overdue assignment's "Ready to submit" + auto-`Closed` status,
+a full create → open → answer → submit flow through the real UI (score
+100%, moves to Completed), loading state, API-failure fallback, refresh,
+navigate-away-and-back, and responsive/mobile-viewport layout (no horizontal
+scroll at 390×844).
+
+**Cross-persona test (real teacher → real student, not API-simulated):**
+a real teacher (**teacher-d**, linked only to student-r) assigns a quiz
+through the actual Teacher Assignments UI (Quiz Library → Assign → Specific
+student → Publish), and student-r receives, opens, answers, and submits it
+through their own real UI (the interactive-quiz iframe). Only the quiz's
+existence in the Library is seeded via API (`POST /quiz/save`, setup only,
+same shape a real "Generate Interactive Quiz" run produces) — the AI
+question-generation wizard was intentionally NOT driven end-to-end, since
+that involves real, non-deterministic AI calls that would make the test
+slow and flaky. The Quiz Library "Assign" quick-path is itself a real,
+fully deterministic supported teacher journey.
+
+This test found and fixed **two real product bugs**:
+1. `TeacherAssignmentsScreen.tsx`'s Library "Assign" button read
+   `q.quiz_data` from the **list** endpoint response, which never includes
+   `quiz_data` (`GET /quiz/list` omits it for listing performance) — so
+   clicking "Assign" directly on any Quiz Library card always failed to
+   publish with *"This quiz has no tasks. Please re-generate before
+   publishing."* The entire Quiz Library reuse feature was non-functional.
+   Fixed to fetch the full quiz via `GET /quiz/:id` first, same as tapping
+   the card itself already did.
+2. (Test bug, not product) the test itself navigated away immediately after
+   clicking Submit, before the async `PUT /assignments/:id/complete` had
+   resolved — the click only dispatches the DOM event, not the async work
+   it triggers. Fixed by waiting for the interactive-quiz modal to actually
+   close (server-confirmed completion signal) before navigating.
+
+New dedicated account **teacher-d** (linked to student-r only, via
+`teacher_student`), seeded via `server/scripts/seed-teacher-d.js`.
+
+New dedicated account **student-r** (CBSE/Grade 3), seeded via
+`server/scripts/seed-student-assignments-r.js` — its `created_at` is
+deliberately backdated to 2020-01-01 so a real overdue assignment can be
+created without tripping the app's `joinedAfterDue` suppression (a
+freshly-created account can never show a genuine overdue item otherwise).
+
+Added `testID`s to `AssignmentsScreen.tsx` (stat cards, filter tabs, empty
+state, loading state, assignment cards, Start button) — the screen had zero
+stable selectors before this, same gap Schedule/Challenges had.
+
+**Local run note (not a product bug):** at this repo's default worker count
+(6, one per CPU core — `workers: undefined` in `playwright.config.js`), this
+spec is flaky under this local single-instance dev server (`node index.js`
+serving both API and the static web build) — screens get stuck on their
+loading spinner for 15s+ under the combined load of 6 concurrent browser
+contexts hammering one Node process. Reliably green at `--workers=2`. Other
+suites may not show this because they're lighter-weight; worth checking
+before assuming they're immune. Recommend either running this spec with
+`--workers=2` locally or verifying it under CI hardware with more headroom.
+
+**Bug fixed (2026-08-13):** `GET /assignments` failing used to silently fall
+back to the normal empty state ("No assignments yet...") — indistinguishable
+from a real empty account. Fixed in `AssignmentsScreen.tsx`: `load()` now
+tracks a separate `loadError` flag, and the screen renders a distinct error
+state ("Couldn't load your assignments. Check your connection and try
+again.") with a "Try again" button that retries `load()`. Only shown when
+there's no already-loaded list to preserve (a transient failure during the
+30s background poll doesn't wipe assignments already on screen). Covered by
+the "when the assignments API fails..." test, which also verifies Try again
+recovers once the API is healthy again. Web bundle (`dist2`) rebuilt via
+`expo export --platform web` to ship the fix.
 
 ## Teacher
 Not started yet.

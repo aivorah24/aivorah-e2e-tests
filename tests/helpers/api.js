@@ -158,6 +158,30 @@ export async function submitAssignment(request, assignmentId, { studentId }) {
   return res.json();
 }
 
+// Read-only expected-value lookup: the exact same call AssignmentsScreen.tsx
+// itself makes on load (GET /assignments?studentId=), used to compute real
+// expected pending/completed/ready counts to compare the screen against -
+// never as the test's own assertion (see CLAUDE.md's E2E Persona Rule).
+export async function getAssignmentsForStudent(request, studentId) {
+  const res = await request.get(`/assignments?studentId=${studentId}`);
+  if (!res.ok()) {
+    throw new Error(`GET /assignments?studentId=${studentId} failed: ${res.status()}`);
+  }
+  return res.json();
+}
+
+// Deletes an assignment (DELETE /assignments/:id) - used for per-test
+// cleanup so assignments created for one test run don't pile up on
+// student-r's account across repeated runs (same convention as
+// deleteScheduleEvent).
+export async function deleteAssignment(request, id) {
+  const res = await request.delete(`/assignments/${id}`);
+  if (!res.ok()) {
+    throw new Error(`DELETE /assignments/${id} failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
 // Looks up a parent's linked child id by email (GET /parent/:email/children -
 // the same call ParentChallengesScreen itself makes to build its child list).
 export async function getChildIdByParentEmail(request, { parentEmail, childEmail }) {
@@ -424,7 +448,47 @@ export async function createHabitTask(request, { parentEmail, childId, label, ic
 export async function deleteHabitTask(request, taskId) {
   const res = await request.delete(`/habits/parent-tasks/${taskId}`);
   if (!res.ok()) {
-    throw new Error(`DELETE /habits/parent-tasks/${taskId} failed: ${res.status()} ${await res.text()}`);
+    throw new Error(
+      `DELETE /habits/parent-tasks/${taskId} failed: ${res.status()} ${await res.text()}`,
+    );
+  }
+  return res.json();
+}
+
+// ── Teacher Assignments (tests/student/assignments/*.spec.js cross-persona test) ──
+
+// Seeds a quiz into a teacher's Quiz Library (POST /quiz/save) - setup only,
+// the same shape a real "Generate Interactive Quiz" run produces. The real
+// teacher UI then does the actual assigning (Library tab -> Assign ->
+// Specific student -> Publish), never this call. No DELETE /quiz/:id route
+// exists server-side, so seeded library entries aren't cleaned up after the
+// test - harmless clutter in teacher-d's own library, not a correctness risk.
+export async function saveQuizToLibrary(request, { teacherId, title, subject, grade, curriculum }) {
+  const res = await request.post('/quiz/save', {
+    data: {
+      teacherId,
+      quiz: {
+        title,
+        subject,
+        grade,
+        curriculum,
+        tasks: [
+          {
+            questions: [
+              {
+                question: 'What is 7 + 5?',
+                type: 'mcq',
+                options: ['12', '10', '13', '11'],
+                correct: '12',
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+  if (!res.ok()) {
+    throw new Error(`POST /quiz/save failed: ${res.status()} ${await res.text()}`);
   }
   return res.json();
 }

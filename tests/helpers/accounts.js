@@ -49,6 +49,12 @@ export const ACCOUNTS = {
     school: 'E2E School Content',
     mutable: true,
   },
+  // Linked to student-r only (teacher_student) - dedicated to the
+  // Assignments spec's cross-persona test (real teacher UI assigns a
+  // quiz -> real student UI receives + submits it). Separate from
+  // teacher-a's roster so this test's Quiz Library seed data can't
+  // collide with the teacher-dashboard analytics specs.
+  'teacher-d': { email: process.env.E2E_TEACHER_D, role: 'teacher', school: 'TSRA', mutable: true },
 
   // ── parent ──
   'parent-a': { email: process.env.E2E_PARENT_A, role: 'parent', school: 'TSRA', mutable: false },
@@ -193,7 +199,12 @@ export const ACCOUNTS = {
   // running both tests in parallel on one account raced their
   // xpBefore/xpAfter deltas (see student-l3's comment - same root cause).
   // Seeded via server/scripts/seed-student-l2.js.
-  'student-l2': { email: process.env.E2E_STUDENT_L2, role: 'student', school: 'TSRA', mutable: true },
+  'student-l2': {
+    email: process.env.E2E_STUDENT_L2,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
   // Dedicated to world-and-you.spec.js's "completion persists across a full
   // page refresh on the same day" test - same isolation reason as
   // student-l2: this test also completes the real quiz for real XP, and
@@ -201,7 +212,39 @@ export const ACCOUNTS = {
   // student-l2's) racing on one shared account produced a false XP-mismatch
   // failure (confirmed 2026-08-10, "Expected: 380, Received: 400").
   // Seeded via server/scripts/seed-student-l3.js.
-  'student-l3': { email: process.env.E2E_STUDENT_L3, role: 'student', school: 'TSRA', mutable: true },
+  'student-l3': {
+    email: process.env.E2E_STUDENT_L3,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  // Dedicated to tests/student/settings/*.spec.js - profile field edits
+  // (name/grade/curriculum/location/email validation). NOT usable by any
+  // other spec: its Grade field gets mutated-then-reverted by that suite's
+  // own test, which previously collided with learning-path's need for a
+  // STABLE Grade 6 profile (confirmed 2026-08-12 - see student-q below).
+  'student-m': { email: process.env.E2E_STUDENT_M, role: 'student', school: 'TSRA', mutable: true },
+  'student-n': { email: process.env.E2E_STUDENT_N, role: 'student', school: 'TSRA', mutable: true },
+  'student-o': { email: process.env.E2E_STUDENT_O, role: 'student', school: 'TSRA', mutable: true },
+  'student-p': { email: process.env.E2E_STUDENT_P, role: 'student', school: 'TSRA', mutable: true },
+  // CBSE/Grade 6, dedicated to tests/student/learning-path/*.spec.js - the
+  // ONLY account in this suite with a STABLE Grade 6 profile, needed to
+  // reach the curated CBSE G6 English syllabus (cbseG6EnglishSyllabus.ts,
+  // active only for Grade 6 - see AIMentorApp/src/data/syllabusRegistry.ts)
+  // and its "Fables and Folk Tales" chapter/topic. student-a (the usual
+  // shared read-only account) is CBSE Grade 3 and does not have this
+  // content. Originally used student-m for this, but that account's Grade
+  // field is also owned/mutated by tests/student/settings/*.spec.js's
+  // Profile-fields test - the two collided (settings' own revert reset the
+  // grade back to 3 mid-suite, confirmed 2026-08-12). Split out to its own
+  // account to guarantee Grade 6 stays put. Seeded via
+  // server/scripts/seed-student-learning-path-g6.js.
+  'student-q': { email: process.env.E2E_STUDENT_Q, role: 'student', school: 'TSRA', mutable: true },
+  // CBSE/Grade 3, dedicated to tests/student/assignments/*.spec.js - creates
+  // and submits real assignments via POST /assignments and its own UI, so
+  // pending/completed counts can't collide with any other spec's account.
+  // Seeded via server/scripts/seed-student-assignments-r.js.
+  'student-r': { email: process.env.E2E_STUDENT_R, role: 'student', school: 'TSRA', mutable: true },
   // Linked to teacher-a for Mathematics (see TEACHER_LINKS in seed-e2e-suite.js) -
   // the only student account wired to a teacher, so teacher-dashboard analytics
   // specs (Learning Path / Assignment / Challenge) can drive real activity and
@@ -296,6 +339,8 @@ export const OWNERSHIP = {
   'student-f': 'parent screen-time tests         (lock flag written by parent-c)',
   'teacher-b': 'teacher profile/settings tests',
   'teacher-c': 'teacher content creation tests',
+  'teacher-d':
+    'tests/student/assignments/assignments.spec.js (cross-persona test - assigns a real quiz to student-r via the real Teacher Assignments UI)',
   'parent-b': 'parent controls tests            (writes to student-e)',
   'parent-c': 'parent controls tests            (writes to student-f)',
   'admin-b': 'school-admin mutation tests       (create/delete student)',
@@ -312,7 +357,7 @@ export const OWNERSHIP = {
   'parent-f':
     'weekly-snapshot.spec.js (topic + study-time -> Learning Journey/Mission/Growth); ' +
     'ALSO tests/student/daily-habits/daily-habits.spec.js (owns the "checking a habit" test - ' +
-    'needs sole ownership of Today/Total Coins aggregates, see that file\'s isolation note)',
+    "needs sole ownership of Today/Total Coins aggregates, see that file's isolation note)",
   'student-parent-f':
     'weekly-snapshot.spec.js (mutated by parent-f); ALSO daily-habits.spec.js (checking test)',
   'parent-f2':
@@ -348,6 +393,16 @@ export const OWNERSHIP = {
     'tests/student/world-and-you/*.spec.js ("reopening the quiz after completing it today" - completes the quiz for real, isolated from student-l)',
   'student-l3':
     'tests/student/world-and-you/*.spec.js ("completion persists across a full page refresh" - completes the quiz for real, isolated from student-l/student-l2)',
+  'student-m':
+    'tests/student/settings/*.spec.js (profile field edits: name/grade/curriculum/location)',
+  'student-n': 'tests/student/settings/*.spec.js (notification toggles + theme preference)',
+  'student-o': 'tests/student/settings/*.spec.js (real password change, reverted after)',
+  'student-p':
+    'tests/student/settings/*.spec.js (Delete Account modal/validation tests - never actually deleted)',
+  'student-q':
+    'tests/student/learning-path/*.spec.js (CBSE Grade 6 - Learning Path/Lesson/Practice flow, "Fables and Folk Tales")',
+  'student-r':
+    'tests/student/assignments/*.spec.js (creates/submits real assignments via API+UI - stats/tabs/empty/error/detail flows)',
 };
 
 export function accountFor(key) {
