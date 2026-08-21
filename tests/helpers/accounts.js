@@ -160,6 +160,16 @@ export const ACCOUNTS = {
     school: 'TSRA',
     mutable: true,
   },
+  // Dedicated to the "Save & Exit" mid-onboarding regression (name/school
+  // partial-save bug) — separate from d1-d9 for the same reason they're
+  // separate from each other: it resets onboarding_completed and re-logs-in
+  // mid-test, which would collide with a d1-d9 test running in parallel.
+  'student-d10': {
+    email: process.env.E2E_STUDENT_D10,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
   'student-e': { email: process.env.E2E_STUDENT_E, role: 'student', school: 'TSRA', mutable: true },
   'student-f': { email: process.env.E2E_STUDENT_F, role: 'student', school: 'TSRA', mutable: true },
   'student-g': { email: process.env.E2E_STUDENT_G, role: 'student', school: 'TSRA', mutable: true },
@@ -335,6 +345,8 @@ export const OWNERSHIP = {
     'ALSO tests/student/leaderboard/leaderboard.spec.js (temporarily sets xpPoints to force rank #1, restores original value in a finally block - non-overlapping field, safe to share)',
   'student-d1..d9':
     'tests/student/onboarding.spec.js (one account per test - onboarding_completed flag)',
+  'student-d10':
+    'tests/student/onboarding-save-and-exit.spec.js (Save & Exit partial-save regression)',
   'student-e': 'parent screen-time tests         (lock flag written by parent-b)',
   'student-f': 'parent screen-time tests         (lock flag written by parent-c)',
   'teacher-b': 'teacher profile/settings tests',

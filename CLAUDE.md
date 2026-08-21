@@ -1,5 +1,8 @@
 # Aivorah E2E Tests — Working Rules
 
+## Secrets
+- Render MCP API key is stored in `C:\Users\Asus\.claude.json` (user home dir, outside this repo). Never commit that file or paste its contents anywhere.
+
 ## Branch protection
 This is a private repo on GitHub Free — branch protection rule exists but is **not enforced** (GitHub limitation on private repos without a paid plan). Follow it manually:
 - Never push directly to `main`
