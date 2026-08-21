@@ -2,6 +2,52 @@
 
 Running log of what's tested and passing, updated after each test run.
 
+## Common (role-agnostic)
+
+| File | Tests | Status |
+|---|---|---|
+| forgot-password.spec.js | 1 | passing |
+
+Lives in `tests/common/`, not a persona folder - the Forgot Password popup and
+its endpoint (`/user/send-password-reset`) are identical for every role, no
+role branching in the code at all. Endpoint deliberately returns `{ ok: true
+}` even for an email that isn't registered (avoids leaking which emails have
+accounts), so the test doesn't need a real seeded account - any email works.
+
+Uses a 20s timeout (longer than most assertions) - this endpoint makes real
+Firebase Admin + email API calls, no mocking, so it's genuinely slower,
+especially right after a server restart. Saw it fail once at 10s when run
+alongside 18 other tests right after a restart, passed cleanly alone and on
+retry - confirmed as a timing/cold-start flake, not a real bug, before
+bumping the timeout.
+
+## Login + signup + password-reset refactor in ai-mentor - now covers all 3
+Extended the same day's refactor (see below) to `/user/send-password-reset`
+too - moved into `services/auth-service.js` + `routes/auth.js`, same as
+sync/role/send-verification/verify. Needed one more shared extraction first:
+`services/firebaseAdmin.js` (the Firebase Admin SDK init), since it's also
+used by other endpoints in `user.js` (change-email, delete-account) - same
+"don't duplicate, extract to a shared file" pattern already used for
+`getPreferences`/`setPreferences`. Verified with the full login+signup+
+forgot-password suite after restart - all pass.
+
+## Full-suite run after the login+signup refactor (2026-08-06) — verified clean
+Ran the whole suite (`npx playwright test`, no filter) against the refactored
+server, per the rule that a shared-code refactor (`/user/sync` runs on every
+page load, not just login) needs the FULL suite re-verified, not just the
+feature you touched — login/signup tests alone wouldn't catch a regression in
+an unrelated screen that happens to depend on the same shared code.
+
+Result: 77 ran, 70 passed, 7 failed. 3 of those 7 are the already-documented
+known bugs (dashboard subject-list mismatch, onboarding grade/DOB mismatch,
+profile Cambridge Grade 11/12 gap) - expected. The other 4 (parent signup,
+profile save-all-fields, profile Sign Out x2) looked like real regressions at
+first, but all 4 passed cleanly when re-run in isolation - confirmed as
+resource contention from running 77 tests / 6 real browsers at once on one
+machine (real network + email + Supabase calls all fighting for resources),
+not caused by the refactor. Always re-run a suspicious full-suite failure in
+isolation before calling it a regression - don't trust the first read.
+
 ## Student
 
 | File | Tests | Status |
@@ -211,10 +257,98 @@ recovers once the API is healthy again. Web bundle (`dist2`) rebuilt via
 `expo export --platform web` to ship the fix.
 
 ## Teacher
-Not started yet.
+
+| File | Tests | Status |
+|---|---|---|
+| b2b-login.spec.js | 3 | passing |
+| email-signup.spec.js | 1 | passing (valid signup only — empty name/invalid email/weak password are the exact same code as student's, tested once there, not repeated here) |
 
 ## Parent
-Not started yet.
+
+| File | Tests | Status |
+|---|---|---|
+| b2b-login.spec.js | 3 | passing |
+| email-signup.spec.js | 1 | passing (valid signup only, same reasoning as teacher above) |
 
 ## School Admin
-Not started yet.
+
+| File | Tests | Status |
+|---|---|---|
+| b2b-login.spec.js | 3 | passing |
+
+No self-signup for school-admin — the signup role picker only offers
+student/teacher/parent (`ROLE_LABELS` in `LandingScreen.tsx`). Admin accounts
+are provisioned separately, not self-registered.
+
+## Login + signup refactor in ai-mentor (2026-08-06)
+Per Sundaresan's plan: E2E first, refactor, re-verify, then (optionally)
+extract to its own repo — one feature at a time, not everything at once.
+
+**Login** (`/user/sync`) and then **signup** (`/user/role`,
+`/user/send-verification`, `/user/verify/:token`) were pulled out of
+`ai-mentor/server/routes/user.js` — a single 2,200-line file that also
+handled photo upload, OTP, billing, and a dozen unrelated things — into:
+- `services/auth-service.js` — the actual logic
+- `routes/auth.js` — thin routes, just wire the request to the service
+- `services/preferences.js` — small shared helper (`getPreferences`/
+  `setPreferences`) that login depends on, pulled out so it's shared instead
+  of duplicated
+
+Verified after each move by rerunning the real E2E suite against the
+restarted server — all 20 login+signup tests (12 login across 4 personas + 8
+signup across 3) stayed green both times, nothing hand-waved.
+
+**Also cleaned up as dead code while moving things**: an unused `crypto`
+import and an unused `sendVerificationEmail` import in `routes/user.js`,
+left behind once their only callers moved out.
+
+**Not touched, on purpose:**
+- Client-side `LoginModal`/`SignupModal` — still inline inside
+  `LandingScreen.tsx` (1340 lines, also has the forgot-password modal and the
+  whole logged-out homepage). Tangled up with shared UI pieces (`AuthModal`,
+  `FormInput`, `GradientButton`, one shared StyleSheet) that Signup/Forgot
+  still need — pulling just Login out cleanly would mean extracting all of
+  that shared UI kit first. Bigger, separate task.
+- `PATCH /user/preferences` and `GET /user/check-verified` — cohesive with
+  auth but not something `signUpWithEmail()`/`signInWithEmail()` themselves
+  call; left in `user.js` rather than scope-creeping the move.
+
+**Real audit findings worth knowing about** (from reading the actual code,
+not guessing): the "who is this user" role/onboarding/verification
+resolution logic is duplicated ~4 times across `AuthContext.tsx` (normal
+login, Google login, page-refresh, teacher→parent dual-role) with subtly
+different edge-case handling each time. Also: `/user/sync` has no auth
+middleware — it trusts whatever email the client sends, no ID-token
+verification. Neither was in today's scope to fix, both worth flagging to
+Sundaresan.
+
+## Standalone auth microservice — proof, not deployed (2026-08-06)
+Per Sundaresan's plan's last step: once refactored + re-verified, extract
+into its own repo and prove it runs independently.
+
+New repo: `github.com/aivorah24/aivorah-auth-service` (private). Contains the
+same `routes/auth.js` + `services/auth-service.js` + `services/preferences.js`
++ `services/mailer.js` + `services/supabase.js`, with their own minimal
+`package.json` (express, @supabase/supabase-js, cors, dotenv, resend,
+nodemailer — nothing else from the big app).
+
+Verified standalone by running it on `localhost:4001` (separate port, own
+process) and hitting it directly — `tests/smoke.js` checks `/health`,
+`/user/sync`, and `/user/role` against the real student/teacher/parent demo
+accounts. All passed. `/user/send-verification` and `/user/verify/:token`
+are deliberately NOT smoke-tested there since they mutate account state
+(flip `accountStatus`, send a real email) — re-running that against the real
+demo accounts every test run would break their verified state. Those two
+stay covered by the Playwright signup specs here instead, which use
+disposable per-run emails.
+
+**Explicitly NOT done**: the live `ai-mentor` app has not been rewired to
+call this service — it still runs its own copy of the same code. Actually
+routing real traffic to a separate service (or a proxy in front of both)
+is real infra work and a bigger decision, intentionally deferred rather than
+rushed right before the Aug 31 deadline.
+
+Repo also has its own `.github/PULL_REQUEST_TEMPLATE.md` and
+`CONTRIBUTING.md` (branch → PR → merge discipline). Real GitHub branch
+protection can't be turned on there either — same GitHub Free + private-repo
+limit as this repo, documented instead of silently skipped.
