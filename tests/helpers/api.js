@@ -15,6 +15,15 @@ const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABAS
 // backend runs on a different port in your environment.
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3007';
 
+// Schedule was migrated off the monolith to its own microservice
+// (aivorah-schedule-service) - both the student ScheduleScreen and the
+// teacher schedule screen write/read here now (confirmed 2026-08-25: the
+// monolith's own /schedule/teacher route still responds but returns stale/
+// empty data, since nothing writes to it anymore - using BACKEND_URL for
+// schedule verification silently reads the wrong backend). Override via
+// SCHEDULE_SERVICE_URL if it runs on a different port in your environment.
+const SCHEDULE_SERVICE_URL = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3009';
+
 export async function getTeacherIdByEmail(email) {
   const { data, error } = await supabaseAdmin
     .from('users')
@@ -355,7 +364,7 @@ export async function createScheduleEvent(
   request,
   { title, date, startTime, endTime, studentId, tag, note, type },
 ) {
-  const res = await request.post(BACKEND_URL + '/schedule', {
+  const res = await request.post(SCHEDULE_SERVICE_URL + '/schedule', {
     data: {
       title,
       date,
@@ -378,7 +387,7 @@ export async function createScheduleEvent(
 // test creates one via the real UI, so events don't pile up across repeated
 // runs against student-k's small fixed calendar.
 export async function deleteScheduleEvent(request, id) {
-  const res = await request.delete(`${BACKEND_URL}/schedule/${id}`);
+  const res = await request.delete(`${SCHEDULE_SERVICE_URL}/schedule/${id}`);
   if (!res.ok()) {
     throw new Error(`DELETE /schedule/${id} failed: ${res.status()} ${await res.text()}`);
   }
@@ -390,7 +399,7 @@ export async function deleteScheduleEvent(request, id) {
 // show, never as the test's own assertion.
 export async function getScheduleForDate(request, { studentId, date, hideCompleted = false }) {
   const res = await request.get(
-    `${BACKEND_URL}/schedule?studentId=${studentId}&date=${date}&hideCompleted=${hideCompleted}`,
+    `${SCHEDULE_SERVICE_URL}/schedule?studentId=${studentId}&date=${date}&hideCompleted=${hideCompleted}`,
   );
   if (!res.ok()) {
     throw new Error(`GET /schedule failed: ${res.status()} ${await res.text()}`);
@@ -406,7 +415,7 @@ export async function getScheduleForDate(request, { studentId, date, hideComplet
 // creating teacher's email, not a single student id.
 export async function getTeacherScheduleForDate(request, { email, date }) {
   const res = await request.get(
-    `${BACKEND_URL}/schedule/teacher?date=${date}&email=${encodeURIComponent(email)}`,
+    `${SCHEDULE_SERVICE_URL}/schedule/teacher?date=${date}&email=${encodeURIComponent(email)}`,
   );
   if (!res.ok()) {
     throw new Error(`GET /schedule/teacher failed: ${res.status()} ${await res.text()}`);
