@@ -6,6 +6,15 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+// The `request` fixture shares playwright.config.js's baseURL (the FRONTEND
+// dev server) with the `page` fixture. Locally that frontend runs on its own
+// port (Metro, e.g. 3006) separate from the backend monolith (e.g. 3007) -
+// see aivorah-frontend/src/config/serverUrl.ts. Every direct backend call in
+// this file must target the backend explicitly, not baseURL, or it silently
+// 404s against the frontend server instead. Override via BACKEND_URL if the
+// backend runs on a different port in your environment.
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3007';
+
 export async function getTeacherIdByEmail(email) {
   const { data, error } = await supabaseAdmin
     .from('users')
@@ -31,7 +40,7 @@ export async function getTeacherIdByEmail(email) {
 // the dashboard's own by-teacher endpoint already returns this, so this
 // is exactly what the app itself resolves against, not a guess.
 export async function getStudentIdByEmail(request, { teacherEmail, studentEmail }) {
-  const res = await request.get(`/student/by-teacher/${encodeURIComponent(teacherEmail)}`);
+  const res = await request.get(`${BACKEND_URL}/student/by-teacher/${encodeURIComponent(teacherEmail)}`);
   if (!res.ok()) {
     throw new Error(`GET /student/by-teacher/${teacherEmail} failed: ${res.status()}`);
   }
@@ -49,7 +58,7 @@ export async function getStudentIdByEmail(request, { teacherEmail, studentEmail 
 // Marks a topic complete for a student, the same way the real Learn5E /
 // IBPYPQuiz screens do after a passed quiz (StudentDataContext.completeLesson).
 export async function completeLesson(request, studentId, { topic, subject, grade, curriculum }) {
-  const res = await request.post(`/student/${studentId}/complete-lesson`, {
+  const res = await request.post(`${BACKEND_URL}/student/${studentId}/complete-lesson`, {
     data: { topic, subject, grade, curriculum },
   });
   if (!res.ok()) {
@@ -64,7 +73,7 @@ export async function completeLesson(request, studentId, { topic, subject, grade
 // from completeLesson, which only fires once at the END of a session and
 // never touches study time itself. A real student session does both.
 export async function logStudyTime(request, studentId, { minutes, subject }) {
-  const res = await request.post(`/student/${studentId}/study-time`, {
+  const res = await request.post(`${BACKEND_URL}/student/${studentId}/study-time`, {
     data: { minutes, source: 'learningPath', subject },
   });
   if (!res.ok()) {
@@ -87,7 +96,7 @@ export async function trackQuizResult(
   { studentEmail, curriculum, topic, subject, score },
 ) {
   const eventType = curriculum === 'IB PYP' ? 'ibpyp_quiz_result' : 'ncert_quiz_result';
-  const res = await request.post('/analytics/track', {
+  const res = await request.post(BACKEND_URL + '/analytics/track', {
     data: { eventType, userEmail: studentEmail, topic, subject, score },
   });
   if (!res.ok()) {
@@ -101,7 +110,7 @@ export async function trackQuizResult(
 // per date+studentId, so calling it twice with the same date just overwrites
 // that one record rather than double-counting.
 export async function markAttendance(request, { date, studentId, status }) {
-  const res = await request.post('/attendance/save', {
+  const res = await request.post(BACKEND_URL + '/attendance/save', {
     data: { date, records: { [studentId]: status } },
   });
   if (!res.ok()) {
@@ -118,7 +127,7 @@ export async function markAttendance(request, { date, studentId, status }) {
 // non-null score. MCQ grading (unlike free-text) is deterministic backend
 // code, not an AI call, so the outcome here is exact and not flaky.
 export async function createAssignment(request, { teacherId, studentId, title, dueDate, subject }) {
-  const res = await request.post('/assignments', {
+  const res = await request.post(BACKEND_URL + '/assignments', {
     data: {
       title,
       dueDate,
@@ -147,7 +156,7 @@ export async function createAssignment(request, { teacherId, studentId, title, d
 // the real submit flow does - scores 100 deterministically (see
 // createAssignment's comment on why plain assignments can't be used here).
 export async function submitAssignment(request, assignmentId, { studentId }) {
-  const res = await request.post(`/assignments/${assignmentId}/submit`, {
+  const res = await request.post(`${BACKEND_URL}/assignments/${assignmentId}/submit`, {
     data: { studentId, quizAnswers: [{ answer: '12' }] },
   });
   if (!res.ok()) {
@@ -163,7 +172,7 @@ export async function submitAssignment(request, assignmentId, { studentId }) {
 // expected pending/completed/ready counts to compare the screen against -
 // never as the test's own assertion (see CLAUDE.md's E2E Persona Rule).
 export async function getAssignmentsForStudent(request, studentId) {
-  const res = await request.get(`/assignments?studentId=${studentId}`);
+  const res = await request.get(`${BACKEND_URL}/assignments?studentId=${studentId}`);
   if (!res.ok()) {
     throw new Error(`GET /assignments?studentId=${studentId} failed: ${res.status()}`);
   }
@@ -175,7 +184,7 @@ export async function getAssignmentsForStudent(request, studentId) {
 // student-r's account across repeated runs (same convention as
 // deleteScheduleEvent).
 export async function deleteAssignment(request, id) {
-  const res = await request.delete(`/assignments/${id}`);
+  const res = await request.delete(`${BACKEND_URL}/assignments/${id}`);
   if (!res.ok()) {
     throw new Error(`DELETE /assignments/${id} failed: ${res.status()} ${await res.text()}`);
   }
@@ -185,7 +194,7 @@ export async function deleteAssignment(request, id) {
 // Looks up a parent's linked child id by email (GET /parent/:email/children -
 // the same call ParentChallengesScreen itself makes to build its child list).
 export async function getChildIdByParentEmail(request, { parentEmail, childEmail }) {
-  const res = await request.get(`/parent/${encodeURIComponent(parentEmail)}/children`);
+  const res = await request.get(`${BACKEND_URL}/parent/${encodeURIComponent(parentEmail)}/children`);
   if (!res.ok()) {
     throw new Error(`GET /parent/${parentEmail}/children failed: ${res.status()}`);
   }
@@ -209,7 +218,7 @@ export async function getChildIdByParentEmail(request, { parentEmail, childEmail
 export async function listChallenges(request, { grade, curriculum, studentId }) {
   const params = new URLSearchParams({ grade, curriculum });
   if (studentId) params.set('studentId', studentId);
-  const res = await request.get(`/challenges?${params.toString()}`);
+  const res = await request.get(`${BACKEND_URL}/challenges?${params.toString()}`);
   if (!res.ok()) {
     throw new Error(`GET /challenges failed: ${res.status()}`);
   }
@@ -224,7 +233,7 @@ export async function listChallenges(request, { grade, curriculum, studentId }) 
 // listChallenges() to compute a real expected Assigned count - using
 // listChallenges() alone undercounts it.
 export async function listAssignedChallenges(request, { studentId }) {
-  const res = await request.get(`/challenges/assigned?studentId=${studentId}`);
+  const res = await request.get(`${BACKEND_URL}/challenges/assigned?studentId=${studentId}`);
   if (!res.ok()) {
     throw new Error(`GET /challenges/assigned failed: ${res.status()}`);
   }
@@ -234,7 +243,7 @@ export async function listAssignedChallenges(request, { studentId }) {
 // Assigns a challenge to a student, the same way a teacher's "Assign
 // Challenge" flow does (POST /challenges/assign).
 export async function assignChallenge(request, { challengeId, studentId, teacherId }) {
-  const res = await request.post('/challenges/assign', {
+  const res = await request.post(BACKEND_URL + '/challenges/assign', {
     data: { challengeId, studentId, assignedById: teacherId, assignedByRole: 'teacher' },
   });
   if (!res.ok()) {
@@ -251,7 +260,7 @@ export async function assignChallengeAsParent(
   request,
   { challengeId, studentId, parentEmail, dueDate },
 ) {
-  const res = await request.post('/challenges/assign', {
+  const res = await request.post(BACKEND_URL + '/challenges/assign', {
     data: { challengeId, studentId, assignedById: parentEmail, assignedByRole: 'parent', dueDate },
   });
   if (!res.ok()) {
@@ -268,7 +277,7 @@ export async function assignChallengeAsParent(
 // assignments_done or current_streak), so this is the real, app-native way
 // to reach those values, not a fabricated shortcut.
 export async function setStudentStats(request, studentId, patch) {
-  const res = await request.put(`/student/${studentId}`, { data: patch });
+  const res = await request.put(`${BACKEND_URL}/student/${studentId}`, { data: patch });
   if (!res.ok()) {
     throw new Error(`PUT /student/${studentId} failed: ${res.status()} ${await res.text()}`);
   }
@@ -280,7 +289,7 @@ export async function setStudentStats(request, studentId, patch) {
 // restore it afterward instead of leaving a permanent side effect on a
 // shared account.
 export async function getStudentStats(request, studentId) {
-  const res = await request.get(`/student/${studentId}`);
+  const res = await request.get(`${BACKEND_URL}/student/${studentId}`);
   if (!res.ok()) {
     throw new Error(`GET /student/${studentId} failed: ${res.status()} ${await res.text()}`);
   }
@@ -294,7 +303,7 @@ export async function getStudentStats(request, studentId) {
 // parent/teacher link to resolve their id through (student-j has neither -
 // getChildIdByParentEmail/getStudentIdByEmail both require one).
 export async function getUserIdByEmail(request, email) {
-  const res = await request.patch('/user/profile', { data: { email } });
+  const res = await request.patch(BACKEND_URL + '/user/profile', { data: { email } });
   if (!res.ok()) {
     throw new Error(`PATCH /user/profile (lookup) failed: ${res.status()} ${await res.text()}`);
   }
@@ -312,7 +321,7 @@ export async function getUserIdByEmail(request, email) {
 // this keeps challenge-flow tests repeatable against the small fixed pool
 // without ever needing a database wipe between runs.
 export async function assignChallengeAsStudent(request, { challengeId, studentId, studentEmail }) {
-  const res = await request.post('/challenges/assign', {
+  const res = await request.post(BACKEND_URL + '/challenges/assign', {
     data: { challengeId, studentId, assignedById: studentEmail, assignedByRole: 'student' },
   });
   if (!res.ok()) {
@@ -323,7 +332,7 @@ export async function assignChallengeAsStudent(request, { challengeId, studentId
 
 // Completes an assigned challenge as a student (POST /challenges/:id/complete).
 export async function completeChallenge(request, assignmentId, { studentId, score }) {
-  const res = await request.post(`/challenges/${assignmentId}/complete`, {
+  const res = await request.post(`${BACKEND_URL}/challenges/${assignmentId}/complete`, {
     data: { studentId, score },
   });
   if (!res.ok()) {
@@ -346,7 +355,7 @@ export async function createScheduleEvent(
   request,
   { title, date, startTime, endTime, studentId, tag, note, type },
 ) {
-  const res = await request.post('/schedule', {
+  const res = await request.post(BACKEND_URL + '/schedule', {
     data: {
       title,
       date,
@@ -369,7 +378,7 @@ export async function createScheduleEvent(
 // test creates one via the real UI, so events don't pile up across repeated
 // runs against student-k's small fixed calendar.
 export async function deleteScheduleEvent(request, id) {
-  const res = await request.delete(`/schedule/${id}`);
+  const res = await request.delete(`${BACKEND_URL}/schedule/${id}`);
   if (!res.ok()) {
     throw new Error(`DELETE /schedule/${id} failed: ${res.status()} ${await res.text()}`);
   }
@@ -381,10 +390,26 @@ export async function deleteScheduleEvent(request, id) {
 // show, never as the test's own assertion.
 export async function getScheduleForDate(request, { studentId, date, hideCompleted = false }) {
   const res = await request.get(
-    `/schedule?studentId=${studentId}&date=${date}&hideCompleted=${hideCompleted}`,
+    `${BACKEND_URL}/schedule?studentId=${studentId}&date=${date}&hideCompleted=${hideCompleted}`,
   );
   if (!res.ok()) {
     throw new Error(`GET /schedule failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+// Reads a teacher's events for one day (GET /schedule/teacher?date=&email=) -
+// TeacherScheduleScreen.tsx's own fetchEvents() call, mirrored here as a
+// read-only expected-value lookup / cleanup helper for
+// tests/teacher/schedule/*.spec.js. Distinct endpoint from the student
+// GET /schedule?studentId= above - the teacher grid is keyed by the
+// creating teacher's email, not a single student id.
+export async function getTeacherScheduleForDate(request, { email, date }) {
+  const res = await request.get(
+    `${BACKEND_URL}/schedule/teacher?date=${date}&email=${encodeURIComponent(email)}`,
+  );
+  if (!res.ok()) {
+    throw new Error(`GET /schedule/teacher failed: ${res.status()} ${await res.text()}`);
   }
   return res.json();
 }
@@ -405,7 +430,7 @@ export async function getScheduleForDate(request, { studentId, date, hideComplet
 // but do not reuse this helper to read today_xp/current_streak expecting it
 // to be side-effect-free.
 export async function getStudentXp(request, studentId) {
-  const res = await request.get(`/student/${studentId}`);
+  const res = await request.get(`${BACKEND_URL}/student/${studentId}`);
   if (!res.ok()) {
     throw new Error(`GET /student/${studentId} failed: ${res.status()} ${await res.text()}`);
   }
@@ -418,7 +443,7 @@ export async function getStudentXp(request, studentId) {
 // real expected streak/coins/task-count values to compare the UI against -
 // never as the test's actual assertion (see CLAUDE.md's E2E Persona Rule).
 export async function getHabitsToday(request, userEmail) {
-  const res = await request.get(`/habits/today?userEmail=${encodeURIComponent(userEmail)}`);
+  const res = await request.get(`${BACKEND_URL}/habits/today?userEmail=${encodeURIComponent(userEmail)}`);
   if (!res.ok()) {
     throw new Error(`GET /habits/today failed: ${res.status()} ${await res.text()}`);
   }
@@ -431,7 +456,7 @@ export async function getHabitsToday(request, userEmail) {
 // own comment: "Parent-assigned tasks (only source of habits)"), so a
 // student-side habits test has no other way to get a real habit on screen.
 export async function createHabitTask(request, { parentEmail, childId, label, icon, coins }) {
-  const res = await request.post('/habits/parent-tasks', {
+  const res = await request.post(BACKEND_URL + '/habits/parent-tasks', {
     data: { parentEmail, childId, label, icon, coins },
   });
   if (!res.ok()) {
@@ -446,7 +471,7 @@ export async function createHabitTask(request, { parentEmail, childId, label, ic
 // since this repo's fullyParallel config means other tests may be creating
 // their own tasks for the same shared account at the same time).
 export async function deleteHabitTask(request, taskId) {
-  const res = await request.delete(`/habits/parent-tasks/${taskId}`);
+  const res = await request.delete(`${BACKEND_URL}/habits/parent-tasks/${taskId}`);
   if (!res.ok()) {
     throw new Error(
       `DELETE /habits/parent-tasks/${taskId} failed: ${res.status()} ${await res.text()}`,
@@ -464,7 +489,7 @@ export async function deleteHabitTask(request, taskId) {
 // exists server-side, so seeded library entries aren't cleaned up after the
 // test - harmless clutter in teacher-d's own library, not a correctness risk.
 export async function saveQuizToLibrary(request, { teacherId, title, subject, grade, curriculum }) {
-  const res = await request.post('/quiz/save', {
+  const res = await request.post(BACKEND_URL + '/quiz/save', {
     data: {
       teacherId,
       quiz: {
