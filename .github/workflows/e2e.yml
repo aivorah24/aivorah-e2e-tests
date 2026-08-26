@@ -170,6 +170,7 @@ jobs:
           path: |
             .auth/**
             .profile-snapshot.json
+          include-hidden-files: true
           retention-days: 1
 
   # -- 2. Test: the full suite, sharded across parallel CI jobs --
