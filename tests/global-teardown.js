@@ -1,9 +1,11 @@
-// Runs ONCE after the whole test run finishes (see playwright.config.js).
+// Runs ONCE after the whole test run finishes (see playwright.config.js) -
+// the LOCAL dev path. See tests/helpers/runTeardown.js for the actual work
+// and why CI's sharded runs use tests/ci/teardown.mjs instead (once, after
+// all shards finish, not once per shard).
 //
-// Reads the snapshots global-setup.js saved and writes them back, so every
-// account the tests changed ends up exactly how it started.
+// Skipped when PLAYWRIGHT_SKIP_GLOBAL_HOOKS=true, same reasoning as
+// global-setup.js - CI's dedicated teardown job handles this once instead.
 
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -14,26 +16,11 @@ dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 const SNAPSHOT_FILE = path.resolve(__dirname, '..', '.profile-snapshot.json');
 
 export default async function globalTeardown() {
-  // No snapshot file means setup never got that far - nothing to put back.
-  if (!fs.existsSync(SNAPSHOT_FILE)) return;
-
-  const { restoreProfile } = await import('./helpers/resetProfile.js');
-  const snapshots = JSON.parse(fs.readFileSync(SNAPSHOT_FILE, 'utf-8'));
-
-  // Put every account back. If one fails we still try the rest - leaving four
-  // accounts dirty because the fifth errored would be worse.
-  const failures = [];
-  for (const [key, { email, snapshot }] of Object.entries(snapshots)) {
-    try {
-      await restoreProfile(email, snapshot);
-    } catch (error) {
-      failures.push(`${key} (${email}): ${error.message}`);
-    }
+  if (process.env.PLAYWRIGHT_SKIP_GLOBAL_HOOKS === 'true') {
+    console.log('[global-teardown] PLAYWRIGHT_SKIP_GLOBAL_HOOKS=true - skipping (CI runs tests/ci/teardown.mjs once, after all shards)');
+    return;
   }
 
-  fs.unlinkSync(SNAPSHOT_FILE);
-
-  if (failures.length) {
-    throw new Error(`Could not restore these accounts:\n  ${failures.join('\n  ')}`);
-  }
+  const { runTeardown } = await import('./helpers/runTeardown.js');
+  await runTeardown(SNAPSHOT_FILE);
 }

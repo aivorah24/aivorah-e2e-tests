@@ -41,8 +41,10 @@ export default defineConfig({
   outputDir: 'recordings',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('')`. */
-    baseURL: 'http://localhost:3006',
+    /* Base URL to use in actions like `await page.goto('')`. Overridable via
+       BASE_URL so CI can point this at a deployed environment (e.g. the
+       Vercel testing frontend) instead of a local dev server. */
+    baseURL: process.env.BASE_URL || 'http://localhost:3006',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',

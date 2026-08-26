@@ -24,6 +24,20 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3007';
 // SCHEDULE_SERVICE_URL if it runs on a different port in your environment.
 const SCHEDULE_SERVICE_URL = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3009';
 
+// The following 5 microservices back the refactored student+teacher
+// features this suite actually exercises (2026-08-26 migration pass —
+// verified against each service's real routes, not assumed): challenges,
+// student stats/XP/lesson-progress, assignments, and profile (used only
+// for the read-only user-id-by-email lookup below). Parent-persona features
+// and non-refactored teacher screens (Attendance, Challenges' teacher/parent
+// side) still depend on the monolith and are deliberately NOT covered by
+// this pass - see the migration-plan discussion, not a gap here.
+const CHALLENGES_SERVICE_URL      = process.env.CHALLENGES_SERVICE_URL      || 'http://localhost:3008';
+const LEADERBOARD_SERVICE_URL     = process.env.LEADERBOARD_SERVICE_URL     || 'http://localhost:4003';
+const ASSIGNMENTS_SERVICE_URL     = process.env.ASSIGNMENTS_SERVICE_URL     || 'http://localhost:3015';
+const PROFILE_SERVICE_URL         = process.env.PROFILE_SERVICE_URL         || 'http://localhost:4002';
+const TEACHER_DASHBOARD_SERVICE_URL = process.env.TEACHER_DASHBOARD_SERVICE_URL || 'http://localhost:3016';
+
 export async function getTeacherIdByEmail(email) {
   const { data, error } = await supabaseAdmin
     .from('users')
@@ -49,7 +63,7 @@ export async function getTeacherIdByEmail(email) {
 // the dashboard's own by-teacher endpoint already returns this, so this
 // is exactly what the app itself resolves against, not a guess.
 export async function getStudentIdByEmail(request, { teacherEmail, studentEmail }) {
-  const res = await request.get(`${BACKEND_URL}/student/by-teacher/${encodeURIComponent(teacherEmail)}`);
+  const res = await request.get(`${TEACHER_DASHBOARD_SERVICE_URL}/student/by-teacher/${encodeURIComponent(teacherEmail)}`);
   if (!res.ok()) {
     throw new Error(`GET /student/by-teacher/${teacherEmail} failed: ${res.status()}`);
   }
@@ -67,7 +81,7 @@ export async function getStudentIdByEmail(request, { teacherEmail, studentEmail 
 // Marks a topic complete for a student, the same way the real Learn5E /
 // IBPYPQuiz screens do after a passed quiz (StudentDataContext.completeLesson).
 export async function completeLesson(request, studentId, { topic, subject, grade, curriculum }) {
-  const res = await request.post(`${BACKEND_URL}/student/${studentId}/complete-lesson`, {
+  const res = await request.post(`${LEADERBOARD_SERVICE_URL}/student/${studentId}/complete-lesson`, {
     data: { topic, subject, grade, curriculum },
   });
   if (!res.ok()) {
@@ -82,7 +96,7 @@ export async function completeLesson(request, studentId, { topic, subject, grade
 // from completeLesson, which only fires once at the END of a session and
 // never touches study time itself. A real student session does both.
 export async function logStudyTime(request, studentId, { minutes, subject }) {
-  const res = await request.post(`${BACKEND_URL}/student/${studentId}/study-time`, {
+  const res = await request.post(`${LEADERBOARD_SERVICE_URL}/student/${studentId}/study-time`, {
     data: { minutes, source: 'learningPath', subject },
   });
   if (!res.ok()) {
@@ -136,7 +150,7 @@ export async function markAttendance(request, { date, studentId, status }) {
 // non-null score. MCQ grading (unlike free-text) is deterministic backend
 // code, not an AI call, so the outcome here is exact and not flaky.
 export async function createAssignment(request, { teacherId, studentId, title, dueDate, subject }) {
-  const res = await request.post(BACKEND_URL + '/assignments', {
+  const res = await request.post(ASSIGNMENTS_SERVICE_URL + '/assignments', {
     data: {
       title,
       dueDate,
@@ -165,7 +179,7 @@ export async function createAssignment(request, { teacherId, studentId, title, d
 // the real submit flow does - scores 100 deterministically (see
 // createAssignment's comment on why plain assignments can't be used here).
 export async function submitAssignment(request, assignmentId, { studentId }) {
-  const res = await request.post(`${BACKEND_URL}/assignments/${assignmentId}/submit`, {
+  const res = await request.post(`${ASSIGNMENTS_SERVICE_URL}/assignments/${assignmentId}/submit`, {
     data: { studentId, quizAnswers: [{ answer: '12' }] },
   });
   if (!res.ok()) {
@@ -181,7 +195,7 @@ export async function submitAssignment(request, assignmentId, { studentId }) {
 // expected pending/completed/ready counts to compare the screen against -
 // never as the test's own assertion (see CLAUDE.md's E2E Persona Rule).
 export async function getAssignmentsForStudent(request, studentId) {
-  const res = await request.get(`${BACKEND_URL}/assignments?studentId=${studentId}`);
+  const res = await request.get(`${ASSIGNMENTS_SERVICE_URL}/assignments?studentId=${studentId}`);
   if (!res.ok()) {
     throw new Error(`GET /assignments?studentId=${studentId} failed: ${res.status()}`);
   }
@@ -227,7 +241,7 @@ export async function getChildIdByParentEmail(request, { parentEmail, childEmail
 export async function listChallenges(request, { grade, curriculum, studentId }) {
   const params = new URLSearchParams({ grade, curriculum });
   if (studentId) params.set('studentId', studentId);
-  const res = await request.get(`${BACKEND_URL}/challenges?${params.toString()}`);
+  const res = await request.get(`${CHALLENGES_SERVICE_URL}/challenges?${params.toString()}`);
   if (!res.ok()) {
     throw new Error(`GET /challenges failed: ${res.status()}`);
   }
@@ -286,7 +300,7 @@ export async function assignChallengeAsParent(
 // assignments_done or current_streak), so this is the real, app-native way
 // to reach those values, not a fabricated shortcut.
 export async function setStudentStats(request, studentId, patch) {
-  const res = await request.put(`${BACKEND_URL}/student/${studentId}`, { data: patch });
+  const res = await request.put(`${LEADERBOARD_SERVICE_URL}/student/${studentId}`, { data: patch });
   if (!res.ok()) {
     throw new Error(`PUT /student/${studentId} failed: ${res.status()} ${await res.text()}`);
   }
@@ -298,7 +312,7 @@ export async function setStudentStats(request, studentId, patch) {
 // restore it afterward instead of leaving a permanent side effect on a
 // shared account.
 export async function getStudentStats(request, studentId) {
-  const res = await request.get(`${BACKEND_URL}/student/${studentId}`);
+  const res = await request.get(`${LEADERBOARD_SERVICE_URL}/student/${studentId}`);
   if (!res.ok()) {
     throw new Error(`GET /student/${studentId} failed: ${res.status()} ${await res.text()}`);
   }
@@ -312,7 +326,7 @@ export async function getStudentStats(request, studentId) {
 // parent/teacher link to resolve their id through (student-j has neither -
 // getChildIdByParentEmail/getStudentIdByEmail both require one).
 export async function getUserIdByEmail(request, email) {
-  const res = await request.patch(BACKEND_URL + '/user/profile', { data: { email } });
+  const res = await request.patch(PROFILE_SERVICE_URL + '/user/profile', { data: { email } });
   if (!res.ok()) {
     throw new Error(`PATCH /user/profile (lookup) failed: ${res.status()} ${await res.text()}`);
   }
@@ -330,7 +344,7 @@ export async function getUserIdByEmail(request, email) {
 // this keeps challenge-flow tests repeatable against the small fixed pool
 // without ever needing a database wipe between runs.
 export async function assignChallengeAsStudent(request, { challengeId, studentId, studentEmail }) {
-  const res = await request.post(BACKEND_URL + '/challenges/assign', {
+  const res = await request.post(CHALLENGES_SERVICE_URL + '/challenges/assign', {
     data: { challengeId, studentId, assignedById: studentEmail, assignedByRole: 'student' },
   });
   if (!res.ok()) {
@@ -439,7 +453,7 @@ export async function getTeacherScheduleForDate(request, { email, date }) {
 // but do not reuse this helper to read today_xp/current_streak expecting it
 // to be side-effect-free.
 export async function getStudentXp(request, studentId) {
-  const res = await request.get(`${BACKEND_URL}/student/${studentId}`);
+  const res = await request.get(`${LEADERBOARD_SERVICE_URL}/student/${studentId}`);
   if (!res.ok()) {
     throw new Error(`GET /student/${studentId} failed: ${res.status()} ${await res.text()}`);
   }
