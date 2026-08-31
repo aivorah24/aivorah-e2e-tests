@@ -29,7 +29,6 @@ import { test, expect } from '@playwright/test';
 import { applySession, statePath } from '../../helpers/auth.js';
 import { accountFor } from '../../helpers/accounts.js';
 import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
-import { unlinkParentFromChild } from '../../helpers/linkParentChild.js';
 import { createClient } from '@supabase/supabase-js';
 
 const ACCOUNT = 'parent-j';
@@ -39,6 +38,34 @@ async function findStudentIdByEmail(email) {
   const { data, error } = await supabaseAdmin.from('users').select('id').eq('email', email).single();
   if (error) throw new Error(`could not look up student by email: ${error.message}`);
   return data.id;
+}
+
+// The shared unlinkParentFromChild helper matches parent_email with an exact
+// .eq(), which silently no-ops when the row was written with different
+// casing than E2E_PARENT_J (the backend inserts req.params.parentEmail
+// verbatim, unnormalised - routes/parent.js:502). That left a stale row
+// behind and the link POST came back 409 "already linked". Match
+// case-insensitively instead, and report what survived if anything does.
+async function forceUnlink(parentEmail, childId) {
+  const { data: rows } = await supabaseAdmin
+    .from('parent_children')
+    .select('parent_email')
+    .eq('child_id', childId);
+  const target = String(parentEmail || '').trim().toLowerCase();
+  for (const row of rows || []) {
+    if (String(row.parent_email || '').trim().toLowerCase() === target) {
+      await supabaseAdmin
+        .from('parent_children')
+        .delete()
+        .eq('child_id', childId)
+        .eq('parent_email', row.parent_email);
+    }
+  }
+  const { data: left } = await supabaseAdmin
+    .from('parent_children')
+    .select('parent_email')
+    .eq('child_id', childId);
+  return (left || []).map(r => r.parent_email);
 }
 
 test.describe('Parent My Kids', () => {
@@ -104,42 +131,50 @@ test.describe('Parent My Kids', () => {
     const studentId = await findStudentIdByEmail(studentEmail);
     // Defensive: make sure we start unlinked, in case a previous run's
     // cleanup didn't complete.
-    await unlinkParentFromChild(process.env.E2E_PARENT_J, studentId);
+    const remainingLinks = await forceUnlink(process.env.E2E_PARENT_J, studentId);
 
-    await page.getByText('Add Child', { exact: true }).filter({ visible: true }).first().click();
-    await expect(page.getByText('Add Child Account', { exact: true })).toBeVisible({ timeout: 10000 });
+    // try/finally: if an assertion fails, the unlink MUST still run -
+    // otherwise the stale parent_children row makes every later run 409
+    // 'already linked' (exactly how this test got stuck).
+    try {
+      await page.getByText('Add Child', { exact: true }).filter({ visible: true }).first().click();
+      await expect(page.getByText('Add Child Account', { exact: true })).toBeVisible({ timeout: 10000 });
 
-    await page.getByText('Link Existing', { exact: true }).filter({ visible: true }).first().click();
-    await page.getByPlaceholder('child@example.com').fill(studentEmail);
+      await page.getByText('Link Existing', { exact: true }).filter({ visible: true }).first().click();
+      await page.getByPlaceholder('child@example.com').fill(studentEmail);
 
-    // Assert on the real POST /parent/:email/children response rather than
-    // guessing from the DOM: addChild() only closes the modal on a 2xx, so a
-    // still-open modal previously gave a useless "modal is visible" failure
-    // with no indication of WHY (404 vs 409 vs 500). Capturing the response
-    // surfaces the backend's own error message in the failure output.
-    const linkResponsePromise = page.waitForResponse(
-      r => /\/parent\/[^/]+\/children(\?|$)/.test(r.url()) && r.request().method() === 'POST',
-      { timeout: 20000 }
-    );
-    await page.getByText('Link Account', { exact: true }).filter({ visible: true }).first().click();
-    const linkResponse = await linkResponsePromise;
-    const linkBody = await linkResponse.text().catch(() => '<unreadable>');
-    expect(
-      linkResponse.status(),
-      `link request failed: ${linkResponse.status()} ${linkBody}`
-    ).toBe(200);
+      // Assert on the real POST /parent/:email/children response rather than
+      // guessing from the DOM: addChild() only closes the modal on a 2xx, so a
+      // still-open modal previously gave a useless "modal is visible" failure
+      // with no indication of WHY (404 vs 409 vs 500). Capturing the response
+      // surfaces the backend's own error message in the failure output.
+      const linkResponsePromise = page.waitForResponse(
+        r => /\/parent\/[^/]+\/children(\?|$)/.test(r.url()) && r.request().method() === 'POST',
+        { timeout: 20000 }
+      );
+      await page.getByText('Link Account', { exact: true }).filter({ visible: true }).first().click();
+      const linkResponse = await linkResponsePromise;
+      const linkBody = await linkResponse.text().catch(() => '<unreadable>');
+      expect(
+        linkResponse.status(),
+        `link request failed: ${linkResponse.status()} ${linkBody} ` +
+          `(parent_children rows still on child ${studentId} after pre-test unlink: ` +
+          `${JSON.stringify(remainingLinks)}; E2E_PARENT_J=${process.env.E2E_PARENT_J})`
+      ).toBe(200);
 
-    // Success: modal closes (it unmounts, so it disappears from the DOM
-    // entirely - count 0 avoids the RN Web duplicate-node visibility trap).
-    await expect(page.getByText('Add Child Account', { exact: true })).toHaveCount(0, { timeout: 15000 });
+      // Success: modal closes (it unmounts, so it disappears from the DOM
+      // entirely - count 0 avoids the RN Web duplicate-node visibility trap).
+      await expect(page.getByText('Add Child Account', { exact: true })).toHaveCount(0, { timeout: 15000 });
 
-    // ...and the student now appears in the My Kids list. The card may show
-    // either the email or the display name, so accept either.
-    await expect(
-      page.getByText(studentEmail, { exact: false }).filter({ visible: true }).first()
-    ).toBeVisible({ timeout: 15000 });
+      // ...and the student now appears in the My Kids list. The card may show
+      // either the email or the display name, so accept either.
+      await expect(
+        page.getByText(studentEmail, { exact: false }).filter({ visible: true }).first()
+      ).toBeVisible({ timeout: 15000 });
 
-    await unlinkParentFromChild(process.env.E2E_PARENT_J, studentId);
+    } finally {
+      await forceUnlink(process.env.E2E_PARENT_J, studentId);
+    }
   });
 
   test('shows an error when linking a non-existent email', async ({ page }) => {
