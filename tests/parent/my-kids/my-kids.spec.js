@@ -111,14 +111,33 @@ test.describe('Parent My Kids', () => {
 
     await page.getByText('Link Existing', { exact: true }).filter({ visible: true }).first().click();
     await page.getByPlaceholder('child@example.com').fill(studentEmail);
-    await page.getByText('Link Account', { exact: true }).filter({ visible: true }).first().click();
 
-    // Success: modal closes, student now appears in the My Kids list.
-    await expect(page.locator(`text=${studentEmail}`).first()).toBeVisible({ timeout: 15000 }).catch(async () => {
-      // Fallback: the card may show the student's name instead of email -
-      // just confirm the modal closed (link succeeded) if email text isn't shown.
-      await expect(page.getByText('Add Child Account', { exact: true })).not.toBeVisible();
-    });
+    // Assert on the real POST /parent/:email/children response rather than
+    // guessing from the DOM: addChild() only closes the modal on a 2xx, so a
+    // still-open modal previously gave a useless "modal is visible" failure
+    // with no indication of WHY (404 vs 409 vs 500). Capturing the response
+    // surfaces the backend's own error message in the failure output.
+    const linkResponsePromise = page.waitForResponse(
+      r => /\/parent\/[^/]+\/children(\?|$)/.test(r.url()) && r.request().method() === 'POST',
+      { timeout: 20000 }
+    );
+    await page.getByText('Link Account', { exact: true }).filter({ visible: true }).first().click();
+    const linkResponse = await linkResponsePromise;
+    const linkBody = await linkResponse.text().catch(() => '<unreadable>');
+    expect(
+      linkResponse.status(),
+      `link request failed: ${linkResponse.status()} ${linkBody}`
+    ).toBe(200);
+
+    // Success: modal closes (it unmounts, so it disappears from the DOM
+    // entirely - count 0 avoids the RN Web duplicate-node visibility trap).
+    await expect(page.getByText('Add Child Account', { exact: true })).toHaveCount(0, { timeout: 15000 });
+
+    // ...and the student now appears in the My Kids list. The card may show
+    // either the email or the display name, so accept either.
+    await expect(
+      page.getByText(studentEmail, { exact: false }).filter({ visible: true }).first()
+    ).toBeVisible({ timeout: 15000 });
 
     await unlinkParentFromChild(process.env.E2E_PARENT_J, studentId);
   });
