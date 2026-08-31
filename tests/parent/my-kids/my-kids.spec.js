@@ -34,10 +34,20 @@ import { createClient } from '@supabase/supabase-js';
 const ACCOUNT = 'parent-j';
 const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-async function findStudentIdByEmail(email) {
-  const { data, error } = await supabaseAdmin.from('users').select('id').eq('email', email).single();
+// The backend resolves the child with
+// .eq('email', childEmail.toLowerCase().trim()) (routes/parent.js:492), so a
+// case-sensitive .eq() here can resolve a DIFFERENT users row than the one the
+// link actually targets - which is why the pre-test unlink kept reporting zero
+// rows while the link POST still 409'd on an existing row. Match the way the
+// backend does, and return every candidate so all of them get unlinked.
+async function findStudentIdsByEmail(email) {
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .select('id, email')
+    .ilike('email', String(email || '').trim());
   if (error) throw new Error(`could not look up student by email: ${error.message}`);
-  return data.id;
+  if (!data || data.length === 0) throw new Error(`no users row for ${email}`);
+  return data;
 }
 
 // The shared unlinkParentFromChild helper matches parent_email with an exact
@@ -128,10 +138,15 @@ test.describe('Parent My Kids', () => {
 
   test('links an existing student account via Link Existing', async ({ page }) => {
     const studentEmail = process.env.E2E_STUDENT_B;
-    const studentId = await findStudentIdByEmail(studentEmail);
+    const studentRows = await findStudentIdsByEmail(studentEmail);
+    const studentId = studentRows[0].id;
     // Defensive: make sure we start unlinked, in case a previous run's
-    // cleanup didn't complete.
-    const remainingLinks = await forceUnlink(process.env.E2E_PARENT_J, studentId);
+    // cleanup didn't complete. Every candidate row is unlinked, since the
+    // backend picks by lowercased email and may not pick studentRows[0].
+    const remainingLinks = [];
+    for (const row of studentRows) {
+      remainingLinks.push({ id: row.id, left: await forceUnlink(process.env.E2E_PARENT_J, row.id) });
+    }
 
     // try/finally: if an assertion fails, the unlink MUST still run -
     // otherwise the stale parent_children row makes every later run 409
@@ -165,8 +180,8 @@ test.describe('Parent My Kids', () => {
 
       const { data: rowsAfter } = await supabaseAdmin
         .from('parent_children')
-        .select('parent_email')
-        .eq('child_id', studentId);
+        .select('parent_email, child_id')
+        .in('child_id', studentRows.map(r => r.id));
       expect(
         linkStatuses.some(s => s.startsWith('200')) || (rowsAfter || []).length > 0,
         `link did not succeed. responses=${JSON.stringify(linkStatuses)}; ` +
@@ -185,7 +200,9 @@ test.describe('Parent My Kids', () => {
       ).toBeVisible({ timeout: 15000 });
 
     } finally {
-      await forceUnlink(process.env.E2E_PARENT_J, studentId);
+      for (const row of studentRows) {
+        await forceUnlink(process.env.E2E_PARENT_J, row.id);
+      }
     }
   });
 
