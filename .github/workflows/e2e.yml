@@ -94,6 +94,7 @@ jobs:
           E2E_PARENT_G: ${{ secrets.E2E_PARENT_G }}
           E2E_PARENT_H: ${{ secrets.E2E_PARENT_H }}
           E2E_PARENT_I: ${{ secrets.E2E_PARENT_I }}
+          E2E_PARENT_J: ${{ secrets.E2E_PARENT_J }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
           E2E_STUDENT_A: ${{ secrets.E2E_STUDENT_A }}
           E2E_STUDENT_B: ${{ secrets.E2E_STUDENT_B }}
@@ -233,6 +234,7 @@ jobs:
           E2E_PARENT_G: ${{ secrets.E2E_PARENT_G }}
           E2E_PARENT_H: ${{ secrets.E2E_PARENT_H }}
           E2E_PARENT_I: ${{ secrets.E2E_PARENT_I }}
+          E2E_PARENT_J: ${{ secrets.E2E_PARENT_J }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
           E2E_STUDENT_A: ${{ secrets.E2E_STUDENT_A }}
           E2E_STUDENT_B: ${{ secrets.E2E_STUDENT_B }}
