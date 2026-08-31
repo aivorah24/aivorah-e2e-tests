@@ -101,6 +101,10 @@ export const ACCOUNTS = {
   // Dedicated to tests/parent/my-kids/*.spec.js (creates/links real child
   // accounts via the My Kids UI) - see OWNERSHIP below.
   'parent-j': { email: process.env.E2E_PARENT_J, role: 'parent', school: 'TSRA', mutable: true },
+  // Dedicated to tests/parent/daily-tasks/daily-tasks.spec.js (creates/
+  // deletes parent-assigned daily tasks for a linked child) - see
+  // OWNERSHIP below.
+  'parent-k': { email: process.env.E2E_PARENT_K, role: 'parent', school: 'TSRA', mutable: true },
 
   // ── student ──
   'student-a': {
@@ -396,6 +400,7 @@ export const OWNERSHIP = {
   'student-parent-f7': 'weekly-snapshot.spec.js (mutated by parent-f7)',
   'parent-i': 'tests/parent/profile/profile.spec.js (PATCHes its own name/phone/location)',
   'parent-j': 'tests/parent/my-kids/*.spec.js (creates/links real child accounts via the My Kids UI)',
+  'parent-k': 'tests/parent/daily-tasks/daily-tasks.spec.js (creates/deletes parent-assigned daily tasks)',
   'parent-g':
     'tests/parent/dashboard/achievements/achievements.spec.js (writes to student-parent-g); ' +
     'ALSO tests/student/daily-habits/daily-habits.spec.js (owns the "unchecking a habit" test)',

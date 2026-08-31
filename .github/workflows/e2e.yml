@@ -26,6 +26,11 @@ env:
   # testing deployment; a handful of not-yet-migrated specs still need it.
   BASE_URL: https://aivorah-frontend-git-master-aivorah24-9470s-projects.vercel.app
   BACKEND_URL: https://aivorah.ai
+  # E2E_PARENT_K plain (not a secret): repo already sits at GitHub's 100
+  # combined-secrets-per-workflow-run ceiling (gh secret set returned 400
+  # Bad Request confirming this), and a test account's email address isn't
+  # sensitive on its own - the shared E2E_PASSWORD secret is what matters.
+  E2E_PARENT_K: e2e.parent.k@aivorah.test
   SCHEDULE_SERVICE_URL: https://aivorah-schedule-service.onrender.com
   CHALLENGES_SERVICE_URL: https://aivorah-challenges-service.onrender.com
   LEADERBOARD_SERVICE_URL: https://aivorah-leaderboard-service.onrender.com
