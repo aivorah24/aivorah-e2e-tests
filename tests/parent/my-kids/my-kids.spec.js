@@ -26,10 +26,10 @@
 // account's state doesn't drift across runs.
 
 import { test, expect } from '@playwright/test';
-import { applySession, statePath } from '../../../helpers/auth.js';
-import { accountFor } from '../../../helpers/accounts.js';
-import { dismissAnnouncementIfPresent } from '../../../helpers/dismissAnnouncement.js';
-import { unlinkParentFromChild } from '../../../helpers/linkParentChild.js';
+import { applySession, statePath } from '../../helpers/auth.js';
+import { accountFor } from '../../helpers/accounts.js';
+import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
+import { unlinkParentFromChild } from '../../helpers/linkParentChild.js';
 import { createClient } from '@supabase/supabase-js';
 
 const ACCOUNT = 'parent-j';
