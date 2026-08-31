@@ -77,13 +77,24 @@ test.describe('Parent My Kids', () => {
 
     await page.getByText('Create Student Account', { exact: true }).filter({ visible: true }).first().click();
 
-    // Success: modal closes, the new child's name appears in the My Kids list.
-    await expect(page.getByText(childName, { exact: true }).first()).toBeVisible({ timeout: 20000 });
+    // Success: creation triggers a credentials modal ("<name>'s login
+    // details") BEFORE the list updates - confirmed via a failure snapshot
+    // showing this dialog blocking the assertion. Close it first.
+    await expect(page.getByText(`${childName}'s login details`, { exact: true })).toBeVisible({ timeout: 20000 });
+    await page.getByText("Got it, I've saved these", { exact: true }).filter({ visible: true }).first().click();
+
+    // Now the new child's name appears in the My Kids list.
+    await expect(page.getByText(childName, { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 10000 });
 
     // Cleanup via the UI's own remove flow, so repeated runs don't pile up
-    // real Firebase/Supabase accounts.
-    const childCard = page.locator('text=' + childName).first();
-    await childCard.locator('xpath=ancestor::*[1]/..').getByRole('button').first().click().catch(() => {});
+    // real Firebase/Supabase accounts. ChildCard renders [edit, remove] as
+    // the two header buttons in that order - the remove ("x") trigger is
+    // the SECOND one, not the first.
+    const childCard = page.getByText(childName, { exact: true }).filter({ visible: true }).first()
+      .locator('xpath=ancestor::*[4]');
+    await childCard.getByRole('button').nth(1).click();
+    await expect(page.getByText(`Remove ${childName}?`, { exact: true })).toBeVisible({ timeout: 10000 });
+    await page.getByText('Remove', { exact: true }).filter({ visible: true }).last().click();
   });
 
   test('links an existing student account via Link Existing', async ({ page }) => {
