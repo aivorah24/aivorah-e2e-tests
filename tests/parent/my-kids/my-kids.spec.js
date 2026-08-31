@@ -52,7 +52,7 @@ test.describe('Parent My Kids', () => {
 
     // Sidebar "My Kids" link, under MENU.
     await page.getByText('My Kids', { exact: true }).last().click();
-    await expect(page.getByText('Add Child', { exact: true }).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Add Child', { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
   });
 
   test('creates a new student account via Create New', async ({ page }) => {
@@ -60,7 +60,7 @@ test.describe('Parent My Kids', () => {
     // check never collides across repeated test runs.
     const childName = `E2E Kid ${Date.now()}`;
 
-    await page.getByText('Add Child', { exact: true }).first().click();
+    await page.getByText('Add Child', { exact: true }).filter({ visible: true }).first().click();
     await expect(page.getByText('Add Child Account', { exact: true })).toBeVisible({ timeout: 10000 });
 
     // "Create New" tab is the default - just fill the form.
@@ -86,7 +86,7 @@ test.describe('Parent My Kids', () => {
     // cleanup didn't complete.
     await unlinkParentFromChild(process.env.E2E_PARENT_J, studentId);
 
-    await page.getByText('Add Child', { exact: true }).first().click();
+    await page.getByText('Add Child', { exact: true }).filter({ visible: true }).first().click();
     await expect(page.getByText('Add Child Account', { exact: true })).toBeVisible({ timeout: 10000 });
 
     await page.getByText('Link Existing', { exact: true }).click();
@@ -104,7 +104,7 @@ test.describe('Parent My Kids', () => {
   });
 
   test('shows an error when linking a non-existent email', async ({ page }) => {
-    await page.getByText('Add Child', { exact: true }).first().click();
+    await page.getByText('Add Child', { exact: true }).filter({ visible: true }).first().click();
     await expect(page.getByText('Add Child Account', { exact: true })).toBeVisible({ timeout: 10000 });
 
     await page.getByText('Link Existing', { exact: true }).click();
