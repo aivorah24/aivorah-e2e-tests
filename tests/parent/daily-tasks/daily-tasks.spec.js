@@ -102,8 +102,16 @@ test.describe('Parent Daily Tasks', () => {
     await page.goto('/');
     await dismissAnnouncementIfPresent(page);
 
-    // Sidebar "Daily Tasks" link, under MENU.
-    await page.getByText('Daily Tasks', { exact: true }).filter({ visible: true }).first().click();
+    // Sidebar "Daily Tasks" link, under MENU. Uses .last() with no visible
+    // filter - matches my-kids.spec.js's proven-working convention for
+    // sidebar nav clicks. filter({visible:true}).first() was tried first
+    // and consistently failed in CI: RN Web keeps the drawer's off-screen
+    // copy in the DOM with a non-zero bounding box (so it still passes
+    // Playwright's "visible" check), and .first() picked that copy, whose
+    // ancestor then intercepted pointer events meant for the real sidebar
+    // link underneath - 30s of "subtree intercepts pointer events" retries
+    // confirmed this via a CI log read.
+    await page.getByText('Daily Tasks', { exact: true }).last().click();
     await expect(page.getByText('SELECT CHILD', { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
   });
 
