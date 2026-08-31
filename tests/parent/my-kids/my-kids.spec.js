@@ -72,10 +72,10 @@ test.describe('Parent My Kids', () => {
     // (createStudent() blocks with "Please select a curriculum/grade" if
     // skipped - confirmed via ParentMyKidsScreen.tsx:404-405). Grade options
     // only render after a curriculum is picked.
-    await page.getByText('CBSE', { exact: true }).first().click();
-    await page.getByText('Grade 3', { exact: true }).first().click();
+    await page.getByText('CBSE', { exact: true }).filter({ visible: true }).first().click();
+    await page.getByText('Grade 3', { exact: true }).filter({ visible: true }).first().click();
 
-    await page.getByText('Create Student Account', { exact: true }).first().click();
+    await page.getByText('Create Student Account', { exact: true }).filter({ visible: true }).first().click();
 
     // Success: modal closes, the new child's name appears in the My Kids list.
     await expect(page.getByText(childName, { exact: true }).first()).toBeVisible({ timeout: 20000 });
@@ -96,9 +96,9 @@ test.describe('Parent My Kids', () => {
     await page.getByText('Add Child', { exact: true }).filter({ visible: true }).first().click();
     await expect(page.getByText('Add Child Account', { exact: true })).toBeVisible({ timeout: 10000 });
 
-    await page.getByText('Link Existing', { exact: true }).first().click();
+    await page.getByText('Link Existing', { exact: true }).filter({ visible: true }).first().click();
     await page.getByPlaceholder('child@example.com').fill(studentEmail);
-    await page.getByText('Link Account', { exact: true }).first().click();
+    await page.getByText('Link Account', { exact: true }).filter({ visible: true }).first().click();
 
     // Success: modal closes, student now appears in the My Kids list.
     await expect(page.locator(`text=${studentEmail}`).first()).toBeVisible({ timeout: 15000 }).catch(async () => {
@@ -114,9 +114,9 @@ test.describe('Parent My Kids', () => {
     await page.getByText('Add Child', { exact: true }).filter({ visible: true }).first().click();
     await expect(page.getByText('Add Child Account', { exact: true })).toBeVisible({ timeout: 10000 });
 
-    await page.getByText('Link Existing', { exact: true }).first().click();
+    await page.getByText('Link Existing', { exact: true }).filter({ visible: true }).first().click();
     await page.getByPlaceholder('child@example.com').fill('no-such-student-e2e@aivorah.test');
-    await page.getByText('Link Account', { exact: true }).first().click();
+    await page.getByText('Link Account', { exact: true }).filter({ visible: true }).first().click();
 
     await expect(page.getByText(/No student found with that email/i)).toBeVisible({ timeout: 15000 });
   });
