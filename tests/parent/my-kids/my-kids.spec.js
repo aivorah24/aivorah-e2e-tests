@@ -86,15 +86,17 @@ test.describe('Parent My Kids', () => {
     // Now the new child's name appears in the My Kids list.
     await expect(page.getByText(childName, { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 10000 });
 
-    // Cleanup via the UI's own remove flow, so repeated runs don't pile up
-    // real Firebase/Supabase accounts. ChildCard renders [edit, remove] as
-    // the two header buttons in that order - the remove ("x") trigger is
-    // the SECOND one, not the first.
-    const childCard = page.getByText(childName, { exact: true }).filter({ visible: true }).first()
-      .locator('xpath=ancestor::*[4]');
-    await childCard.getByRole('button').nth(1).click();
-    await expect(page.getByText(`Remove ${childName}?`, { exact: true })).toBeVisible({ timeout: 10000 });
-    await page.getByText('Remove', { exact: true }).filter({ visible: true }).last().click();
+    // Cleanup via a direct DB delete rather than the UI's remove flow - the
+    // exact DOM ancestor level to find this specific child's remove button
+    // proved too fragile (RN Web's duplicate mobile/desktop rendering makes
+    // xpath ancestor-counting unreliable). Functional assertions above this
+    // point already prove the real feature works; this is just tidying up
+    // the real account created so repeated runs don't pile up.
+    const { data: created } = await supabaseAdmin.from('users').select('id').eq('name', childName).maybeSingle();
+    if (created?.id) {
+      await supabaseAdmin.from('parent_children').delete().eq('child_id', created.id);
+      await supabaseAdmin.from('users').delete().eq('id', created.id);
+    }
   });
 
   test('links an existing student account via Link Existing', async ({ page }) => {
