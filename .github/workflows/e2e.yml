@@ -11,6 +11,10 @@ on:
         description: 'Number of parallel shards to split the suite across'
         required: false
         default: '4'
+      testFilter:
+        description: 'Optional Playwright --grep pattern to scope this run to specific spec(s), e.g. "My Kids"'
+        required: false
+        default: ''
 
 env:
   # -- Testing environment targets (not secrets - public hostnames) --
@@ -200,7 +204,7 @@ jobs:
         with:
           name: e2e-session
       - name: Run this shard
-        run: npx playwright test --shard=${{ matrix.shard }}/4 --reporter=blob
+        run: npx playwright test --shard=${{ matrix.shard }}/4 --reporter=blob ${{ github.event.inputs.testFilter != '' && format('--grep="{0}"', github.event.inputs.testFilter) || '' }}
         env:
           PLAYWRIGHT_SKIP_GLOBAL_HOOKS: 'true'
           B2B_ADMIN_EMAIL: ${{ secrets.B2B_ADMIN_EMAIL }}

@@ -55,6 +55,12 @@ export const ACCOUNTS = {
   // teacher-a's roster so this test's Quiz Library seed data can't
   // collide with the teacher-dashboard analytics specs.
   'teacher-d': { email: process.env.E2E_TEACHER_D, role: 'teacher', school: 'TSRA', mutable: true },
+  // Dedicated to tests/teacher/students/*.spec.js. This spec creates,
+  // links, bulk-imports, removes, and promotes real students on its own
+  // roster - needs full isolation so its student-count/roster mutations
+  // never collide with teacher-dashboard analytics or Assignments specs
+  // reading a shared account's student list.
+  'teacher-e': { email: process.env.E2E_TEACHER_E, role: 'teacher', school: 'E2E School Content', mutable: true },
 
   // ── parent ──
   'parent-a': { email: process.env.E2E_PARENT_A, role: 'parent', school: 'TSRA', mutable: false },
@@ -92,6 +98,9 @@ export const ACCOUNTS = {
   // for the Activity Overview card's "N kids" count - never mutates
   // student-a itself.
   'parent-i': { email: process.env.E2E_PARENT_I, role: 'parent', school: 'TSRA', mutable: true },
+  // Dedicated to tests/parent/my-kids/*.spec.js (creates/links real child
+  // accounts via the My Kids UI) - see OWNERSHIP below.
+  'parent-j': { email: process.env.E2E_PARENT_J, role: 'parent', school: 'TSRA', mutable: true },
 
   // ── student ──
   'student-a': {
@@ -156,6 +165,15 @@ export const ACCOUNTS = {
   },
   'student-d9': {
     email: process.env.E2E_STUDENT_D9,
+    role: 'student',
+    school: 'TSRA',
+    mutable: true,
+  },
+  // Dedicated to the gender/dob/state persistence-across-return regression
+  // test (2026-08-26) — separate from d1-d9 above for the same
+  // parallel-tests-need-separate-accounts reason.
+  'student-d10': {
+    email: process.env.E2E_STUDENT_D10,
     role: 'student',
     school: 'TSRA',
     mutable: true,
@@ -341,6 +359,7 @@ export const OWNERSHIP = {
   'teacher-c': 'teacher content creation tests',
   'teacher-d':
     'tests/student/assignments/assignments.spec.js (cross-persona test - assigns a real quiz to student-r via the real Teacher Assignments UI)',
+  'teacher-e': 'tests/teacher/students/*.spec.js (create/link/bulk-import/remove/promote real students on its own roster)',
   'parent-b': 'parent controls tests            (writes to student-e)',
   'parent-c': 'parent controls tests            (writes to student-f)',
   'admin-b': 'school-admin mutation tests       (create/delete student)',
@@ -376,6 +395,7 @@ export const OWNERSHIP = {
   'parent-f7': 'weekly-snapshot.spec.js (Top Interest/Learning Style/AI Insight)',
   'student-parent-f7': 'weekly-snapshot.spec.js (mutated by parent-f7)',
   'parent-i': 'tests/parent/profile/profile.spec.js (PATCHes its own name/phone/location)',
+  'parent-j': 'tests/parent/my-kids/*.spec.js (creates/links real child accounts via the My Kids UI)',
   'parent-g':
     'tests/parent/dashboard/achievements/achievements.spec.js (writes to student-parent-g); ' +
     'ALSO tests/student/daily-habits/daily-habits.spec.js (owns the "unchecking a habit" test)',
