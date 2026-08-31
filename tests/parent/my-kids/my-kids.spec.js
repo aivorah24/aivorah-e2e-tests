@@ -168,9 +168,19 @@ test.describe('Parent My Kids', () => {
       // duplicate-node visibility trap that made not.toBeVisible() flaky here.
       await expect(page.getByText('Add Child Account', { exact: true })).toHaveCount(0, { timeout: 15000 });
 
-      // ...and the student now shows up in the My Kids list.
+      // ...and the student now shows up in the My Kids list. The card renders
+      // the child's display NAME, not the email (confirmed by a failure where
+      // the email text appeared nowhere in the DOM), so ask the backend for
+      // the name of the child it just linked rather than hardcoding it.
+      const linkedChild = (await listChildren(process.env.E2E_PARENT_J)).find(
+        c => String(c.email || '').toLowerCase() === String(studentEmail).toLowerCase()
+      );
+      expect(
+        linkedChild,
+        `${studentEmail} is not among the parent's children after linking`
+      ).toBeTruthy();
       await expect(
-        page.getByText(studentEmail, { exact: false }).filter({ visible: true }).first()
+        page.getByText(linkedChild.name, { exact: true }).filter({ visible: true }).first()
       ).toBeVisible({ timeout: 15000 });
     } finally {
       await unlinkChildByEmail(process.env.E2E_PARENT_J, studentEmail);
