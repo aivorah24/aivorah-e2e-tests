@@ -29,53 +29,48 @@ import { test, expect } from '@playwright/test';
 import { applySession, statePath } from '../../helpers/auth.js';
 import { accountFor } from '../../helpers/accounts.js';
 import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
-import { createClient } from '@supabase/supabase-js';
-
 const ACCOUNT = 'parent-j';
-const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-// The backend resolves the child with
-// .eq('email', childEmail.toLowerCase().trim()) (routes/parent.js:492), so a
-// case-sensitive .eq() here can resolve a DIFFERENT users row than the one the
-// link actually targets - which is why the pre-test unlink kept reporting zero
-// rows while the link POST still 409'd on an existing row. Match the way the
-// backend does, and return every candidate so all of them get unlinked.
-async function findStudentIdsByEmail(email) {
-  const { data, error } = await supabaseAdmin
-    .from('users')
-    .select('id, email')
-    .ilike('email', String(email || '').trim());
-  if (error) throw new Error(`could not look up student by email: ${error.message}`);
-  if (!data || data.length === 0) throw new Error(`no users row for ${email}`);
-  return data;
+// Setup/cleanup goes through the backend's OWN API, not a direct Supabase
+// write. Confirmed the hard way: SUPABASE_URL (the project the tests hold a
+// service key for) is NOT the project the deployed backend at aivorah.ai
+// reads and writes. Direct-DB unlinks therefore deleted nothing the backend
+// could see, the stale parent_children row survived every run, and the link
+// POST kept coming back 409 "This child is already linked to your account."
+// while the test's own DB query showed zero rows. The backend already
+// exposes exactly the two endpoints needed, so use those - they are true by
+// construction whichever database is behind them.
+const BACKEND = process.env.E2E_BACKEND_URL || 'https://aivorah.ai';
+
+function childrenUrl(parentEmail) {
+  return `${BACKEND}/parent/${encodeURIComponent(parentEmail)}/children`;
 }
 
-// The shared unlinkParentFromChild helper matches parent_email with an exact
-// .eq(), which silently no-ops when the row was written with different
-// casing than E2E_PARENT_J (the backend inserts req.params.parentEmail
-// verbatim, unnormalised - routes/parent.js:502). That left a stale row
-// behind and the link POST came back 409 "already linked". Match
-// case-insensitively instead, and report what survived if anything does.
-async function forceUnlink(parentEmail, childId) {
-  const { data: rows } = await supabaseAdmin
-    .from('parent_children')
-    .select('parent_email')
-    .eq('child_id', childId);
-  const target = String(parentEmail || '').trim().toLowerCase();
-  for (const row of rows || []) {
-    if (String(row.parent_email || '').trim().toLowerCase() === target) {
-      await supabaseAdmin
-        .from('parent_children')
-        .delete()
-        .eq('child_id', childId)
-        .eq('parent_email', row.parent_email);
+async function listChildren(parentEmail) {
+  const res = await fetch(childrenUrl(parentEmail));
+  if (!res.ok) throw new Error(`could not list children: ${res.status}`);
+  return res.json();
+}
+
+// Unlinks by email, case-insensitively (the backend lowercases the email when
+// it looks a child up, so the test must not be stricter than the backend).
+// Returns the emails still linked afterwards, for failure diagnostics.
+async function unlinkChildByEmail(parentEmail, childEmail) {
+  const target = String(childEmail || '').trim().toLowerCase();
+  for (const child of await listChildren(parentEmail)) {
+    if (String(child.email || '').trim().toLowerCase() === target) {
+      await fetch(`${childrenUrl(parentEmail)}/${child.id}`, { method: 'DELETE' });
     }
   }
-  const { data: left } = await supabaseAdmin
-    .from('parent_children')
-    .select('parent_email')
-    .eq('child_id', childId);
-  return (left || []).map(r => r.parent_email);
+  return (await listChildren(parentEmail)).map(c => c.email);
+}
+
+async function unlinkChildByName(parentEmail, childName) {
+  for (const child of await listChildren(parentEmail)) {
+    if (child.name === childName) {
+      await fetch(`${childrenUrl(parentEmail)}/${child.id}`, { method: 'DELETE' });
+    }
+  }
 }
 
 test.describe('Parent My Kids', () => {
@@ -123,34 +118,24 @@ test.describe('Parent My Kids', () => {
     // Now the new child's name appears in the My Kids list.
     await expect(page.getByText(childName, { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 10000 });
 
-    // Cleanup via a direct DB delete rather than the UI's remove flow - the
-    // exact DOM ancestor level to find this specific child's remove button
-    // proved too fragile (RN Web's duplicate mobile/desktop rendering makes
-    // xpath ancestor-counting unreliable). Functional assertions above this
-    // point already prove the real feature works; this is just tidying up
-    // the real account created so repeated runs don't pile up.
-    const { data: created } = await supabaseAdmin.from('users').select('id').eq('name', childName).maybeSingle();
-    if (created?.id) {
-      await supabaseAdmin.from('parent_children').delete().eq('child_id', created.id);
-      await supabaseAdmin.from('users').delete().eq('id', created.id);
-    }
+    // Cleanup through the backend's own API rather than the UI's remove flow
+    // (the exact DOM ancestor for this specific child's remove button proved
+    // too fragile under RN Web's duplicate mobile/desktop rendering) and
+    // rather than a direct DB delete (the test's Supabase project is not the
+    // one the backend uses - see the note at the top of this file). The
+    // assertions above already prove the feature works; this just stops
+    // repeated runs from piling children up on the account.
+    await unlinkChildByName(process.env.E2E_PARENT_J, childName);
   });
 
   test('links an existing student account via Link Existing', async ({ page }) => {
     const studentEmail = process.env.E2E_STUDENT_B;
-    const studentRows = await findStudentIdsByEmail(studentEmail);
-    const studentId = studentRows[0].id;
-    // Defensive: make sure we start unlinked, in case a previous run's
-    // cleanup didn't complete. Every candidate row is unlinked, since the
-    // backend picks by lowercased email and may not pick studentRows[0].
-    const remainingLinks = [];
-    for (const row of studentRows) {
-      remainingLinks.push({ id: row.id, left: await forceUnlink(process.env.E2E_PARENT_J, row.id) });
-    }
+    // Defensive: start from a known-unlinked state, in case a previous run's
+    // cleanup didn't complete - otherwise the link POST 409s "already linked".
+    const linkedBefore = await unlinkChildByEmail(process.env.E2E_PARENT_J, studentEmail);
 
-    // try/finally: if an assertion fails, the unlink MUST still run -
-    // otherwise the stale parent_children row makes every later run 409
-    // 'already linked' (exactly how this test got stuck).
+    // try/finally: if an assertion fails the unlink MUST still run, or the
+    // leftover link poisons every later run (exactly how this test got stuck).
     try {
       await page.getByText('Add Child', { exact: true }).filter({ visible: true }).first().click();
       await expect(page.getByText('Add Child Account', { exact: true })).toBeVisible({ timeout: 10000 });
@@ -159,15 +144,11 @@ test.describe('Parent My Kids', () => {
       await page.getByPlaceholder('child@example.com').fill(studentEmail);
 
       // Assert on the real POST /parent/:email/children response rather than
-      // guessing from the DOM: addChild() only closes the modal on a 2xx, so a
-      // still-open modal previously gave a useless "modal is visible" failure
-      // with no indication of WHY (404 vs 409 vs 500). Capturing the response
-      // surfaces the backend's own error message in the failure output.
-      // Record EVERY matching POST, not just the first. A single
-      // waitForResponse raced: if the click produces two requests, the second
-      // one necessarily 409s ("already linked") because the first already
-      // inserted the row, and the test then reported that 409 as a failure.
-      // What matters is that the link succeeded at least once.
+      // inferring from the DOM: addChild() only closes the modal on a 2xx, so
+      // a still-open modal gave a useless "modal is visible" failure with no
+      // indication of WHY (404 vs 409 vs 500). Every matching POST is
+      // recorded, not just the first, so a duplicate submit - which always
+      // 409s once the first insert lands - can't be mistaken for a failure.
       const linkStatuses = [];
       page.on('response', async r => {
         if (/\/parent\/[^/]+\/children(\?|$)/.test(r.url()) && r.request().method() === 'POST') {
@@ -177,32 +158,22 @@ test.describe('Parent My Kids', () => {
 
       await page.getByText('Link Account', { exact: true }).filter({ visible: true }).first().click();
       await expect.poll(() => linkStatuses.length, { timeout: 20000 }).toBeGreaterThan(0);
-
-      const { data: rowsAfter } = await supabaseAdmin
-        .from('parent_children')
-        .select('parent_email, child_id')
-        .in('child_id', studentRows.map(r => r.id));
       expect(
-        linkStatuses.some(s => s.startsWith('200')) || (rowsAfter || []).length > 0,
-        `link did not succeed. responses=${JSON.stringify(linkStatuses)}; ` +
-          `rows before=${JSON.stringify(remainingLinks)}; ` +
-          `rows after=${JSON.stringify(rowsAfter)}`
+        linkStatuses.some(s => s.startsWith('200')),
+        `link request failed: ${JSON.stringify(linkStatuses)} ` +
+          `(children linked before this test: ${JSON.stringify(linkedBefore)})`
       ).toBe(true);
 
-      // Success: modal closes (it unmounts, so it disappears from the DOM
-      // entirely - count 0 avoids the RN Web duplicate-node visibility trap).
+      // Modal closes on success - it unmounts, so count 0 sidesteps the RN Web
+      // duplicate-node visibility trap that made not.toBeVisible() flaky here.
       await expect(page.getByText('Add Child Account', { exact: true })).toHaveCount(0, { timeout: 15000 });
 
-      // ...and the student now appears in the My Kids list. The card may show
-      // either the email or the display name, so accept either.
+      // ...and the student now shows up in the My Kids list.
       await expect(
         page.getByText(studentEmail, { exact: false }).filter({ visible: true }).first()
       ).toBeVisible({ timeout: 15000 });
-
     } finally {
-      for (const row of studentRows) {
-        await forceUnlink(process.env.E2E_PARENT_J, row.id);
-      }
+      await unlinkChildByEmail(process.env.E2E_PARENT_J, studentEmail);
     }
   });
 
