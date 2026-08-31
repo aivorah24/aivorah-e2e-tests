@@ -68,6 +68,13 @@ test.describe('Parent My Kids', () => {
     // Email left blank on purpose - exercises the auto-generated-email path.
     await page.getByPlaceholder('School name (optional)').fill('Apsham');
 
+    // Curriculum and Grade are required chip selectors, not native <select>s
+    // (createStudent() blocks with "Please select a curriculum/grade" if
+    // skipped - confirmed via ParentMyKidsScreen.tsx:404-405). Grade options
+    // only render after a curriculum is picked.
+    await page.getByText('CBSE', { exact: true }).click();
+    await page.getByText('Grade 3', { exact: true }).click();
+
     await page.getByText('Create Student Account', { exact: true }).click();
 
     // Success: modal closes, the new child's name appears in the My Kids list.
