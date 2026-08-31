@@ -148,19 +148,31 @@ test.describe('Parent My Kids', () => {
       // still-open modal previously gave a useless "modal is visible" failure
       // with no indication of WHY (404 vs 409 vs 500). Capturing the response
       // surfaces the backend's own error message in the failure output.
-      const linkResponsePromise = page.waitForResponse(
-        r => /\/parent\/[^/]+\/children(\?|$)/.test(r.url()) && r.request().method() === 'POST',
-        { timeout: 20000 }
-      );
+      // Record EVERY matching POST, not just the first. A single
+      // waitForResponse raced: if the click produces two requests, the second
+      // one necessarily 409s ("already linked") because the first already
+      // inserted the row, and the test then reported that 409 as a failure.
+      // What matters is that the link succeeded at least once.
+      const linkStatuses = [];
+      page.on('response', async r => {
+        if (/\/parent\/[^/]+\/children(\?|$)/.test(r.url()) && r.request().method() === 'POST') {
+          linkStatuses.push(`${r.status()} ${await r.text().catch(() => '<unreadable>')}`);
+        }
+      });
+
       await page.getByText('Link Account', { exact: true }).filter({ visible: true }).first().click();
-      const linkResponse = await linkResponsePromise;
-      const linkBody = await linkResponse.text().catch(() => '<unreadable>');
+      await expect.poll(() => linkStatuses.length, { timeout: 20000 }).toBeGreaterThan(0);
+
+      const { data: rowsAfter } = await supabaseAdmin
+        .from('parent_children')
+        .select('parent_email')
+        .eq('child_id', studentId);
       expect(
-        linkResponse.status(),
-        `link request failed: ${linkResponse.status()} ${linkBody} ` +
-          `(parent_children rows still on child ${studentId} after pre-test unlink: ` +
-          `${JSON.stringify(remainingLinks)}; E2E_PARENT_J=${process.env.E2E_PARENT_J})`
-      ).toBe(200);
+        linkStatuses.some(s => s.startsWith('200')) || (rowsAfter || []).length > 0,
+        `link did not succeed. responses=${JSON.stringify(linkStatuses)}; ` +
+          `rows before=${JSON.stringify(remainingLinks)}; ` +
+          `rows after=${JSON.stringify(rowsAfter)}`
+      ).toBe(true);
 
       // Success: modal closes (it unmounts, so it disappears from the DOM
       // entirely - count 0 avoids the RN Web duplicate-node visibility trap).
