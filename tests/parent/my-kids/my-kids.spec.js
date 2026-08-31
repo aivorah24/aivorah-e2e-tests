@@ -98,7 +98,7 @@ test.describe('Parent My Kids', () => {
 
     await page.getByText('Link Existing', { exact: true }).first().click();
     await page.getByPlaceholder('child@example.com').fill(studentEmail);
-    await page.getByRole('button', { name: /Link/i }).last().click();
+    await page.getByText('Link Account', { exact: true }).first().click();
 
     // Success: modal closes, student now appears in the My Kids list.
     await expect(page.locator(`text=${studentEmail}`).first()).toBeVisible({ timeout: 15000 }).catch(async () => {
@@ -116,7 +116,7 @@ test.describe('Parent My Kids', () => {
 
     await page.getByText('Link Existing', { exact: true }).first().click();
     await page.getByPlaceholder('child@example.com').fill('no-such-student-e2e@aivorah.test');
-    await page.getByRole('button', { name: /Link/i }).last().click();
+    await page.getByText('Link Account', { exact: true }).first().click();
 
     await expect(page.getByText(/No student found with that email/i)).toBeVisible({ timeout: 15000 });
   });
