@@ -232,6 +232,18 @@ export async function getChildIdByParentEmail(request, { parentEmail, childEmail
   return match.id;
 }
 
+// Returns every child linked to a parent (GET /parent/:email/children) -
+// for callers that need the full list/count, not just one id (e.g.
+// asserting a parent has >=2 linked children, or reading each child's
+// grade/curriculum for an expected-value comparison).
+export async function getChildrenByParentEmail(request, parentEmail) {
+  const res = await request.get(`${BACKEND_URL}/parent/${encodeURIComponent(parentEmail)}/children`);
+  if (!res.ok()) {
+    throw new Error(`GET /parent/${parentEmail}/children failed: ${res.status()}`);
+  }
+  return res.json();
+}
+
 // Lists the real challenges available for a grade/curriculum - used to pick
 // a real challengeId instead of guessing one. Passing studentId includes
 // each challenge's assignment status for that student (GET /challenges?
