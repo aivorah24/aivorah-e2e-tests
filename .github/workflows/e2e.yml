@@ -15,6 +15,10 @@ on:
         description: 'Optional Playwright --grep pattern to scope this run to specific spec(s), e.g. "My Kids"'
         required: false
         default: ''
+      accountFilter:
+        description: 'Optional comma-separated account keys to log in (e.g. "parent-e,parent-f7") - scopes setup to only the accounts a filtered run needs instead of logging in all ~64. Leave blank when testFilter is blank/broad.'
+        required: false
+        default: ''
 
 env:
   # -- Testing environment targets (not secrets - public hostnames) --
@@ -73,6 +77,7 @@ jobs:
       - name: Warm up services + log in every account + snapshot profiles
         run: node tests/ci/setup.mjs
         env:
+          ACCOUNT_FILTER: ${{ github.event.inputs.accountFilter }}
           B2B_ADMIN_EMAIL: ${{ secrets.B2B_ADMIN_EMAIL }}
           B2B_ADMIN_PASSWORD: ${{ secrets.B2B_ADMIN_PASSWORD }}
           B2B_PARENT_EMAIL: ${{ secrets.B2B_PARENT_EMAIL }}
