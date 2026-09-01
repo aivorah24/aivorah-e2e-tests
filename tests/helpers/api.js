@@ -37,6 +37,7 @@ const LEADERBOARD_SERVICE_URL     = process.env.LEADERBOARD_SERVICE_URL     || '
 const ASSIGNMENTS_SERVICE_URL     = process.env.ASSIGNMENTS_SERVICE_URL     || 'http://localhost:3015';
 const PROFILE_SERVICE_URL         = process.env.PROFILE_SERVICE_URL         || 'http://localhost:4002';
 const TEACHER_DASHBOARD_SERVICE_URL = process.env.TEACHER_DASHBOARD_SERVICE_URL || 'http://localhost:3016';
+const STUDENTS_SERVICE_URL        = process.env.STUDENTS_SERVICE_URL        || 'http://localhost:3017';
 
 export async function getTeacherIdByEmail(email) {
   const { data, error } = await supabaseAdmin
@@ -327,6 +328,22 @@ export async function getStudentStats(request, studentId) {
   const res = await request.get(`${LEADERBOARD_SERVICE_URL}/student/${studentId}`);
   if (!res.ok()) {
     throw new Error(`GET /student/${studentId} failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+// Read-only lookup matching what the Parent Progress screen itself now
+// fetches (GET /student/:id on aivorah-students-service, migrated off the
+// monolith 2026-09-01) - NOT the same data as getStudentStats() above,
+// which reads from aivorah-leaderboard-service (a separate service for
+// leaderboard rankings that happens to expose an overlapping-shaped route,
+// but was never the Progress screen's actual source and has no topic-count
+// logic at all). Use this one for any expected-value comparison against
+// what Parent Progress renders.
+export async function getStudentStatsFromStudentsService(request, studentId) {
+  const res = await request.get(`${STUDENTS_SERVICE_URL}/student/${studentId}`);
+  if (!res.ok()) {
+    throw new Error(`GET /student/${studentId} (students-service) failed: ${res.status()} ${await res.text()}`);
   }
   return res.json();
 }

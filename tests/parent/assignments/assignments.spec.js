@@ -43,8 +43,12 @@ async function openParentAssignments(page) {
   await expect(page.getByText('Assignments', { exact: true }).first()).toBeVisible({ timeout: 15000 });
 }
 
+// getByText('Parent') was ambiguous - it also matched the "Parent" role
+// label in the header/nav, which sometimes won .first() and navigated
+// away to the Profile screen instead of applying the filter. The filter
+// tabs now carry an unambiguous accessibilityLabel for exactly this.
 function parentFilter(page, label) {
-  return page.getByText(label, { exact: true }).filter({ visible: true }).first();
+  return page.getByLabel(`filter-${label}`, { exact: true });
 }
 
 // The due-date field (components/common/DatePicker.tsx) is a calendar
