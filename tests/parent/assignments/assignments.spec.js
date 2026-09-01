@@ -92,6 +92,47 @@ test.describe('Parent Assignments - viewing, filters, child switching, and detai
       await expect(page.getByText(`${child.name} · ${child.grade}`, { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
     }
   });
+
+  // Regression coverage for a real ambiguity in the New Assignment modal: it
+  // has no explicit "assign to" picker - it silently targets whichever
+  // child's tab is currently active on the screen (see
+  // aivorah-frontend/src/.legacy-screens/parent/ParentAssignmentsScreen.tsx,
+  // `child = children[selectedIdx]`). This locks in that the assignment
+  // really does go to the active child only, and never leaks into the other
+  // child's list.
+  test('an assignment created while a specific child tab is active is only visible for that child', async ({ context, page, request }) => {
+    const parentEmail = accountFor(READ_ONLY_PARENT).email;
+    const children = await getChildrenByParentEmail(request, parentEmail);
+    expect(children.length, 'parent-e should have two linked children').toBeGreaterThanOrEqual(2);
+    const [childA, childB] = children;
+    const title = uniqueTitle('E2E Targeted Child Assignment');
+    let created;
+
+    try {
+      await applySession(context, READ_ONLY_PARENT);
+      await openParentAssignments(page);
+
+      // Switch to child A's tab, then create - the modal has no in-form
+      // child picker, so this tab switch is what determines the target.
+      await page.getByText(childA.name, { exact: true }).filter({ visible: true }).first().click();
+      await expect(page.getByText(`${childA.name} · ${childA.grade}`, { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
+
+      created = await createAssignmentAsParent(request, { childId: childA.id, parentEmail, title, dueDate: isoPlusDays(3), type: 'assignment' });
+
+      await page.reload();
+      await dismissAnnouncementIfPresent(page);
+      await expect(page.getByText(`${childA.name} · ${childA.grade}`, { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
+      await expect(page.getByText(title, { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
+
+      // Switch to child B - the same assignment must not appear here, since
+      // it was created for child A specifically.
+      await page.getByText(childB.name, { exact: true }).filter({ visible: true }).first().click();
+      await expect(page.getByText(`${childB.name} · ${childB.grade}`, { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
+      await expect(page.getByText(title, { exact: true })).toHaveCount(0);
+    } finally {
+      await cleanup(request, [created?.id]);
+    }
+  });
 });
 
 test.describe('Parent Assignments - mutable list states, filters, and details', () => {
