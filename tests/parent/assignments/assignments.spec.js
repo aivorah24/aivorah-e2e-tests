@@ -47,6 +47,16 @@ function parentFilter(page, label) {
   return page.getByText(label, { exact: true }).filter({ visible: true }).first();
 }
 
+// The due-date field (components/common/DatePicker.tsx) is a calendar
+// popover, not a text input - there's no fillable placeholder to target.
+// Open it (its empty-state placeholder text doubles as the click target)
+// and pick the day by its accessibilityLabel (the 'YYYY-MM-DD' key), which
+// DatePicker sets on every day cell for exactly this reason.
+async function pickDueDate(page, isoDate) {
+  await page.getByText('Select a due date', { exact: true }).filter({ visible: true }).first().click();
+  await page.getByLabel(isoDate, { exact: true }).click();
+}
+
 async function createAssignmentAsParent(request, { childId, parentEmail, title, dueDate, createdByRole = 'parent', type = 'quiz', status = 'pending' }) {
   const res = await request.post(`${ASSIGNMENTS_SERVICE}/assignments`, {
     data: {
@@ -268,7 +278,7 @@ test.describe('Parent Assignments - parent creates work for the student', () => 
     await page.getByText('Science', { exact: true }).filter({ visible: true }).first().click();
     await page.getByPlaceholder(/Chapter 5/).fill('Plants');
     await page.getByText('assignment', { exact: true }).filter({ visible: true }).first().click();
-    await page.getByPlaceholder('Select a due date').fill(isoPlusDays(3));
+    await pickDueDate(page, isoPlusDays(3));
     await page.getByPlaceholder('Question 1...').fill('Write one observation about plants.');
     await page.getByPlaceholder('Instructions or encouragement for your child...').fill('Created by parent E2E.');
     await page.getByText('Create Assignment', { exact: true }).filter({ visible: true }).first().click();
@@ -310,7 +320,7 @@ test.describe('Parent Assignments - parent creates work for the student', () => 
     await expect(page.getByText('Questions', { exact: true }).filter({ visible: true }).first()).toBeVisible();
     await expect(page.getByText(titlePattern).filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
 
-    await page.getByPlaceholder('Select a due date').fill(isoPlusDays(3));
+    await pickDueDate(page, isoPlusDays(3));
     await page.getByText('Create Assignment', { exact: true }).filter({ visible: true }).first().click();
 
     await expect(page.getByText(titlePattern).filter({ visible: true }).first()).toBeVisible({ timeout: 20000 });
@@ -318,22 +328,5 @@ test.describe('Parent Assignments - parent creates work for the student', () => 
     const created = all.find((a) => a.createdBy === 'parent' && a.quizQuestions?.length >= 1 && new Date(a.createdAt || a.created_at || 0).getTime() > RUN_ID - 60000);
     expect(created, 'expected generated parent quiz to persist for cleanup').toBeTruthy();
     await cleanup(request, [created.id]);
-  });
-
-  test.fixme('documents current bug: create modal silently targets the currently selected child tab, with no in-modal child picker', async ({ context, page }) => {
-    await applySession(context, READ_ONLY_PARENT);
-    await openParentAssignments(page);
-    await page.getByText('New', { exact: true }).filter({ visible: true }).first().click();
-    await expect(page.getByText(/For .*Grade/).filter({ visible: true }).first()).toBeVisible();
-    await expect(page.getByText('Assign to', { exact: true })).toHaveCount(0);
-  });
-
-  test.fixme('documents current bug: subject chips are hardcoded IB PYP subjects instead of changing with the selected child curriculum', async ({ context, page }) => {
-    await applySession(context, READ_ONLY_PARENT);
-    await openParentAssignments(page);
-    await page.getByText('New', { exact: true }).filter({ visible: true }).first().click();
-    for (const hardcoded of ['Mathematics', 'Science', 'English', 'Social Studies', 'Arts', 'Physical Education', 'ICT']) {
-      await expect(page.getByText(hardcoded, { exact: true }).filter({ visible: true }).first()).toBeVisible();
-    }
   });
 });
