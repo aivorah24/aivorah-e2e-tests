@@ -137,12 +137,15 @@ test.describe('Parent Dashboard - Challenges', () => {
     });
   });
 
-  // KNOWN BUG: the backend does not verify the caller is a parent linked to
-  // the requested child - GET /challenges and POST /challenges/assign accept
-  // ANY studentId with no ownership/auth check (see routes/challenges.js).
-  // Written for the CORRECT (403) behavior on purpose, so it shows red until
-  // the app is fixed.
-  test('a parent cannot fetch challenges for a child they are not linked to (known bug - currently succeeds)', async ({
+  // Ownership check on GET /challenges (routes/challenges.js): fixed
+  // 2026-09-02 - only enforced when the caller actually claims parentEmail
+  // (there's no session/auth layer on this service, so a caller making no
+  // ownership claim, e.g. student/teacher, isn't policed - only a false
+  // parent claim is rejected). This test must send parentEmail=parent-d to
+  // actually exercise that claim; omitting it (as this test originally did,
+  // when the check was unconditional on any studentId) now correctly gets
+  // 200, not 403, since no claim is being made.
+  test('a parent cannot fetch challenges for a child they are not linked to', async ({
     request,
   }) => {
     // These must hit the backend explicitly, not Playwright's request
@@ -154,9 +157,9 @@ test.describe('Parent Dashboard - Challenges', () => {
       .get(`${BACKEND_URL}/parent/${encodeURIComponent(accountFor('parent-a').email)}/children`)
       .then((r) => r.json());
 
-    // Currently succeeds with 200 - parent-d has no link to student-a.
+    // parent-d (this test's session) has no link to student-a.
     const res = await request.get(
-      `${CHALLENGES_SERVICE_URL}/challenges?grade=Grade 3&curriculum=NCERT&studentId=${studentA.id}`,
+      `${CHALLENGES_SERVICE_URL}/challenges?grade=Grade 3&curriculum=NCERT&studentId=${studentA.id}&parentEmail=${encodeURIComponent(accountFor('parent-d').email)}`,
     );
     expect(res.status()).toBe(403);
   });
