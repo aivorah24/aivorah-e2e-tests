@@ -28,11 +28,18 @@ const SCHEDULE_SERVICE_URL = process.env.SCHEDULE_SERVICE_URL || 'http://localho
 // features this suite actually exercises (2026-08-26 migration pass —
 // verified against each service's real routes, not assumed): challenges,
 // student stats/XP/lesson-progress, assignments, and profile (used only
-// for the read-only user-id-by-email lookup below). Parent-persona features
-// and non-refactored teacher screens (Attendance, Challenges' teacher/parent
-// side) still depend on the monolith and are deliberately NOT covered by
-// this pass - see the migration-plan discussion, not a gap here.
+// for the read-only user-id-by-email lookup below). Non-refactored teacher
+// screens (Attendance) still depend on the monolith and are deliberately
+// NOT covered by this pass - see the migration-plan discussion, not a gap
+// here. Parent Challenges was migrated off the monolith 2026-09-02 (see
+// aivorah-frontend PR #36) - assignChallenge/assignChallengeAsParent/
+// listAssignedChallenges/completeChallenge below were missed in that pass
+// and still posted to BACKEND_URL (the monolith), which 404s on any
+// microservice-only challenge id (fixed 2026-09-02, same day as PR #36 -
+// only surfaced once the type-taxonomy fix let a real microservice
+// challenge id become a selectable E2E target).
 const CHALLENGES_SERVICE_URL      = process.env.CHALLENGES_SERVICE_URL      || 'http://localhost:3008';
+export { BACKEND_URL, CHALLENGES_SERVICE_URL };
 const LEADERBOARD_SERVICE_URL     = process.env.LEADERBOARD_SERVICE_URL     || 'http://localhost:4003';
 const ASSIGNMENTS_SERVICE_URL     = process.env.ASSIGNMENTS_SERVICE_URL     || 'http://localhost:3015';
 const PROFILE_SERVICE_URL         = process.env.PROFILE_SERVICE_URL         || 'http://localhost:4002';
@@ -256,7 +263,7 @@ export async function listChallenges(request, { grade, curriculum, studentId }) 
 // listChallenges() to compute a real expected Assigned count - using
 // listChallenges() alone undercounts it.
 export async function listAssignedChallenges(request, { studentId }) {
-  const res = await request.get(`${BACKEND_URL}/challenges/assigned?studentId=${studentId}`);
+  const res = await request.get(`${CHALLENGES_SERVICE_URL}/challenges/assigned?studentId=${studentId}`);
   if (!res.ok()) {
     throw new Error(`GET /challenges/assigned failed: ${res.status()}`);
   }
@@ -266,7 +273,7 @@ export async function listAssignedChallenges(request, { studentId }) {
 // Assigns a challenge to a student, the same way a teacher's "Assign
 // Challenge" flow does (POST /challenges/assign).
 export async function assignChallenge(request, { challengeId, studentId, teacherId }) {
-  const res = await request.post(BACKEND_URL + '/challenges/assign', {
+  const res = await request.post(CHALLENGES_SERVICE_URL + '/challenges/assign', {
     data: { challengeId, studentId, assignedById: teacherId, assignedByRole: 'teacher' },
   });
   if (!res.ok()) {
@@ -283,7 +290,7 @@ export async function assignChallengeAsParent(
   request,
   { challengeId, studentId, parentEmail, dueDate },
 ) {
-  const res = await request.post(BACKEND_URL + '/challenges/assign', {
+  const res = await request.post(CHALLENGES_SERVICE_URL + '/challenges/assign', {
     data: { challengeId, studentId, assignedById: parentEmail, assignedByRole: 'parent', dueDate },
   });
   if (!res.ok()) {
@@ -355,7 +362,7 @@ export async function assignChallengeAsStudent(request, { challengeId, studentId
 
 // Completes an assigned challenge as a student (POST /challenges/:id/complete).
 export async function completeChallenge(request, assignmentId, { studentId, score }) {
-  const res = await request.post(`${BACKEND_URL}/challenges/${assignmentId}/complete`, {
+  const res = await request.post(`${CHALLENGES_SERVICE_URL}/challenges/${assignmentId}/complete`, {
     data: { studentId, score },
   });
   if (!res.ok()) {

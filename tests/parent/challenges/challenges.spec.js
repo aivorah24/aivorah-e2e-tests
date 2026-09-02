@@ -23,6 +23,8 @@ import {
   listChallenges,
   assignChallengeAsParent,
   completeChallenge,
+  BACKEND_URL,
+  CHALLENGES_SERVICE_URL,
 } from '../../helpers/api.js';
 import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
 
@@ -142,13 +144,18 @@ test.describe('Parent Dashboard - Challenges', () => {
   test('a parent cannot fetch challenges for a child they are not linked to (known bug - currently succeeds)', async ({
     request,
   }) => {
+    // These must hit the backend explicitly, not Playwright's request
+    // fixture default baseURL (the frontend) - a relative path here 404s
+    // silently against the frontend's static server, returning an HTML
+    // document instead of JSON (same pitfall documented for BACKEND_URL at
+    // the top of helpers/api.js).
     const [studentA] = await request
-      .get(`/parent/${encodeURIComponent(accountFor('parent-a').email)}/children`)
+      .get(`${BACKEND_URL}/parent/${encodeURIComponent(accountFor('parent-a').email)}/children`)
       .then((r) => r.json());
 
     // Currently succeeds with 200 - parent-d has no link to student-a.
     const res = await request.get(
-      `/challenges?grade=Grade 3&curriculum=NCERT&studentId=${studentA.id}`,
+      `${CHALLENGES_SERVICE_URL}/challenges?grade=Grade 3&curriculum=NCERT&studentId=${studentA.id}`,
     );
     expect(res.status()).toBe(403);
   });
