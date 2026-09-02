@@ -11,11 +11,26 @@
 import { test, expect } from '@playwright/test';
 import { applySession, statePath } from '../../helpers/auth.js';
 import { accountFor } from '../../helpers/accounts.js';
+import { linkParentToChild } from '../../helpers/linkParentChild.js';
 
 const READ_ONLY_PARENT = 'parent-e';
 
 test.describe('Parent AI Progress Report', () => {
   test.use({ storageState: statePath(READ_ONLY_PARENT) });
+
+  // aivorah-students-service's GET /ai-report 403s unless a parent_children
+  // row for this parent+child exists in ITS OWN Supabase project - that
+  // link data was never migrated there (root-caused 2026-09-02, same gap
+  // documented in parentChallengesService.ts). Seed it directly, the same
+  // fixture pattern the Challenges spec already uses for parent-d, using
+  // parent-e's real linked children from the monolith (source of truth for
+  // who's actually linked) rather than hardcoding child ids here.
+  test.beforeAll(async () => {
+    const parentEmail = accountFor(READ_ONLY_PARENT).email;
+    const res = await fetch(`${process.env.BACKEND_URL}/parent/${encodeURIComponent(parentEmail)}/children`);
+    const children = res.ok ? await res.json() : [];
+    await Promise.all(children.map(c => linkParentToChild(parentEmail, c.id)));
+  });
 
   test.beforeEach(async ({ context, page }) => {
     await applySession(context, READ_ONLY_PARENT);
