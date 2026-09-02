@@ -25,6 +25,7 @@ import {
   completeChallenge,
   BACKEND_URL,
   CHALLENGES_SERVICE_URL,
+  STUDENTS_SERVICE_URL,
 } from '../../helpers/api.js';
 import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
 
@@ -94,7 +95,7 @@ test.describe('Parent Dashboard - Challenges', () => {
               parentEmail,
             });
 
-      const statsBefore = await request.get(`/student/${studentId}`).then((r) => r.json());
+      const statsBefore = await request.get(`${STUDENTS_SERVICE_URL}/student/${studentId}`).then((r) => r.json());
 
       // xpAwarded is prorated by score (routes/challenges.js: round(xpReward * score/100)).
       await completeChallenge(request, assignment.id, { studentId, score: 100 });
@@ -105,14 +106,14 @@ test.describe('Parent Dashboard - Challenges', () => {
       await expect
         .poll(
           async () => {
-            const after = await request.get(`/student/${studentId}`).then((r) => r.json());
+            const after = await request.get(`${STUDENTS_SERVICE_URL}/student/${studentId}`).then((r) => r.json());
             return after.xpPoints;
           },
           { timeout: 15000, message: 'xpPoints did not increase after completing the challenge' },
         )
         .toBeGreaterThan(statsBefore.xpPoints);
 
-      const statsAfter = await request.get(`/student/${studentId}`).then((r) => r.json());
+      const statsAfter = await request.get(`${STUDENTS_SERVICE_URL}/student/${studentId}`).then((r) => r.json());
 
       // ParentChallengesScreen renders XP via toLocaleString() (comma
       // thousands separators), not the raw number. exact:true because the

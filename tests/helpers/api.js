@@ -39,7 +39,12 @@ const SCHEDULE_SERVICE_URL = process.env.SCHEDULE_SERVICE_URL || 'http://localho
 // only surfaced once the type-taxonomy fix let a real microservice
 // challenge id become a selectable E2E target).
 const CHALLENGES_SERVICE_URL      = process.env.CHALLENGES_SERVICE_URL      || 'http://localhost:3008';
-export { BACKEND_URL, CHALLENGES_SERVICE_URL };
+// Student stats/XP (GET /student/:id) live on aivorah-students-service, the
+// same backend the refactored ParentChallengesScreen's fetchChildStats calls
+// (aivorah-frontend PR #36) - not BACKEND_URL/the monolith, which the parent
+// challenges spec previously (wrongly) used relative /student/:id calls for.
+const STUDENTS_SERVICE_URL        = process.env.STUDENTS_SERVICE_URL        || 'http://localhost:3017';
+export { BACKEND_URL, CHALLENGES_SERVICE_URL, STUDENTS_SERVICE_URL };
 const LEADERBOARD_SERVICE_URL     = process.env.LEADERBOARD_SERVICE_URL     || 'http://localhost:4003';
 const ASSIGNMENTS_SERVICE_URL     = process.env.ASSIGNMENTS_SERVICE_URL     || 'http://localhost:3015';
 const PROFILE_SERVICE_URL         = process.env.PROFILE_SERVICE_URL         || 'http://localhost:4002';
