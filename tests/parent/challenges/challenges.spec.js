@@ -69,12 +69,13 @@ test.describe('Parent Dashboard - Challenges', () => {
         curriculum: 'CBSE',
         studentId,
       });
-      // ParentChallengesScreen only renders three sections - School Challenges,
-      // Olympiad-Style Questions, Advanced Practice - by `type`. Any other type
-      // exists in the data but is never shown, so picking one wouldn't make a
-      // visible/checkable change on screen.
-      const RENDERED_TYPES = ['school_challenge', 'olympiad', 'advanced_practice'];
-      const target = challenges.find((c) => RENDERED_TYPES.includes(c.type));
+      // ParentChallengesScreen groups by whatever `category`/`type` the API
+      // returns (fixed 2026-09-02 - it used to only render three hardcoded
+      // types: school_challenge/olympiad/advanced_practice, which silently
+      // dropped every challenge once the taxonomy grew beyond those three).
+      // Any available, unassigned-or-assigned challenge is now a valid,
+      // screen-rendered target.
+      const target = challenges.find((c) => c.status !== 'completed');
       expect(target, 'expected at least one screen-rendered CBSE/Grade 3 challenge').toBeTruthy();
 
       // POST /challenges/assign resets a 'completed' assignment back to
