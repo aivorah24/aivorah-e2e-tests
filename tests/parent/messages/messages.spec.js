@@ -22,6 +22,10 @@ const PARENT_EMAIL = accountFor(PARENT).email;
 const uniqueText = (base) => `${base} ${Date.now()}`;
 
 async function withLinkedTeacher(request, studentEmail, run) {
+  // 2 sequential real network calls to Render free-tier services before any
+  // UI step even starts - the default 30s test timeout isn't enough (same
+  // reasoning as tests/teacher/challenges/challenges.spec.js's 60s bump).
+  test.setTimeout(60000);
   const linkRes = await request.post(
     `${STUDENTS_SERVICE_URL}/teacher/${encodeURIComponent(TEACHER_EMAIL)}/students/link-existing`,
     { data: { studentEmail } }
