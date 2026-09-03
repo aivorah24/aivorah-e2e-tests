@@ -118,6 +118,7 @@ test.describe('Parent Messages', () => {
       await sendButton(page).click();
       await expect(convoRow(page, TEACHER_EMAIL)).toBeVisible({ timeout: 10000 });
 
+      await expect(searchInput(page)).toBeVisible({ timeout: 10000 });
       await searchInput(page).fill('zzz-no-such-contact');
       await expect(convoRow(page, TEACHER_EMAIL)).toBeHidden();
 
@@ -138,6 +139,7 @@ test.describe('Parent Messages', () => {
       await sendButton(page).click();
       await expect(convoRow(page, TEACHER_EMAIL)).toBeVisible({ timeout: 10000 });
 
+      await expect(filterTab(page, 'unread')).toBeVisible({ timeout: 10000 });
       await filterTab(page, 'unread').click();
       await expect(convoRow(page, TEACHER_EMAIL)).toBeHidden();
 
