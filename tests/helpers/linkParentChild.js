@@ -9,7 +9,14 @@
 // far more invasive to drive for a single test fixture than one Postgres row.
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+// DEST_SUPABASE_URL/KEY let a local run point this at whichever project the
+// local services actually read from (they can differ from the E2E project
+// this repo's own .env targets) - unset in CI/deployed runs, so behavior
+// there is unchanged.
+const supabaseAdmin = createClient(
+  process.env.DEST_SUPABASE_URL || process.env.SUPABASE_URL,
+  process.env.DEST_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+);
 
 export async function linkParentToChild(parentEmail, childId) {
   const { error } = await supabaseAdmin
