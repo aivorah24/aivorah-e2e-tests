@@ -28,5 +28,14 @@ export default async function globalSetup(config) {
 
   const { runSetup } = await import('./helpers/runSetup.js');
   const baseURL = config.projects[0].use.baseURL;
-  await runSetup({ baseURL });
+
+  // Set by scripts/run-scoped-spec.mjs for a local single-spec run on a
+  // constrained machine - comma-separated tests/helpers/accounts.js keys.
+  // Unset (the normal `npm test` / CI path) means "seed everything", same
+  // as before this existed.
+  const onlyAccounts = process.env.E2E_ONLY_ACCOUNTS
+    ? process.env.E2E_ONLY_ACCOUNTS.split(',').map((s) => s.trim()).filter(Boolean)
+    : undefined;
+
+  await runSetup({ baseURL, onlyAccounts });
 }

@@ -44,7 +44,12 @@ const CHALLENGES_SERVICE_URL      = process.env.CHALLENGES_SERVICE_URL      || '
 // (aivorah-frontend PR #36) - not BACKEND_URL/the monolith, which the parent
 // challenges spec previously (wrongly) used relative /student/:id calls for.
 const STUDENTS_SERVICE_URL        = process.env.STUDENTS_SERVICE_URL        || 'http://localhost:3017';
-export { BACKEND_URL, CHALLENGES_SERVICE_URL, STUDENTS_SERVICE_URL };
+// Screen-time limits/weekly cap/allowed hours/break enforcer/subject filter -
+// extracted from the monolith into its own service 2026-09-03. Same Supabase
+// project (Dev DB) as STUDENTS_SERVICE_URL, so child ids resolved via that
+// service line up with this one's parent_children/screen_time checks.
+const PARENTAL_CONTROLS_SERVICE_URL = process.env.PARENTAL_CONTROLS_SERVICE_URL || 'http://localhost:3018';
+export { BACKEND_URL, CHALLENGES_SERVICE_URL, STUDENTS_SERVICE_URL, PARENTAL_CONTROLS_SERVICE_URL };
 const LEADERBOARD_SERVICE_URL     = process.env.LEADERBOARD_SERVICE_URL     || 'http://localhost:4003';
 const ASSIGNMENTS_SERVICE_URL     = process.env.ASSIGNMENTS_SERVICE_URL     || 'http://localhost:3015';
 const PROFILE_SERVICE_URL         = process.env.PROFILE_SERVICE_URL         || 'http://localhost:4002';
@@ -240,6 +245,25 @@ export async function getChildIdByParentEmail(request, { parentEmail, childEmail
       `No child with email ${childEmail} found under parent ${parentEmail}. ` +
         `Check the PARENT_LINKS entry in seed-e2e-suite.js.`,
     );
+  }
+  return match.id;
+}
+
+// Same lookup as getChildIdByParentEmail, but against aivorah-students-service
+// (Dev DB) instead of the monolith - use this when the id will be passed to
+// another Dev-DB-backed service (e.g. aivorah-parental-controls-service),
+// since the monolith and Dev DB have separate `users` rows with DIFFERENT
+// ids for the same test account email (confirmed via a live check
+// 2026-09-03).
+export async function getChildIdByParentEmailFromStudentsService(request, { parentEmail, childEmail }) {
+  const res = await request.get(`${STUDENTS_SERVICE_URL}/parent/${encodeURIComponent(parentEmail)}/children`);
+  if (!res.ok()) {
+    throw new Error(`GET ${STUDENTS_SERVICE_URL}/parent/${parentEmail}/children failed: ${res.status()}`);
+  }
+  const children = await res.json();
+  const match = children.find((c) => c.email === childEmail);
+  if (!match) {
+    throw new Error(`No child with email ${childEmail} found under parent ${parentEmail} in the Dev DB.`);
   }
   return match.id;
 }

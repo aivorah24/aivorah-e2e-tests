@@ -40,7 +40,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function runSetup({ baseURL }) {
+export async function runSetup({ baseURL, onlyAccounts } = {}) {
   const { snapshotProfile } = await import('./resetProfile.js');
   const { harvestSession, AUTH_DIR } = await import('./auth.js');
   const { ACCOUNTS, PASSWORD, accountFor } = await import('./accounts.js');
@@ -50,6 +50,22 @@ export async function runSetup({ baseURL }) {
   // Start clean - a stale session from an earlier run would silently log a
   // test in as the wrong account.
   fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+
+  // Scoped run (E2E_ONLY_ACCOUNTS / scripts/run-scoped-spec.mjs): log in and
+  // snapshot ONLY the requested accounts instead of all ~90 - the point is
+  // to keep memory/time down on a small machine, not to touch every
+  // account's session just to run one spec. Unknown keys are dropped with a
+  // warning rather than failing the whole run, so a typo doesn't brick a
+  // scoped run.
+  let accountKeys = Object.keys(ACCOUNTS);
+  if (onlyAccounts && onlyAccounts.length) {
+    const unknown = onlyAccounts.filter((k) => !ACCOUNTS[k]);
+    if (unknown.length) {
+      console.warn(`[setup] ignoring unknown account key(s) in onlyAccounts: ${unknown.join(', ')}`);
+    }
+    accountKeys = onlyAccounts.filter((k) => ACCOUNTS[k]);
+    console.log(`[setup] scoped run: seeding ${accountKeys.length} account(s) instead of ${Object.keys(ACCOUNTS).length}: ${accountKeys.join(', ')}`);
+  }
 
   // ── 0. Warm up every backend + the frontend, in parallel ──────────────
   const warmupStart = Date.now();
@@ -71,7 +87,7 @@ export async function runSetup({ baseURL }) {
   }
 
   // ── 1. Log in every account, bounded-concurrency + retry/backoff ──────
-  const keys = Object.keys(ACCOUNTS);
+  const keys = accountKeys;
   const browser = await chromium.launch();
   const loginStart = Date.now();
 
@@ -124,7 +140,7 @@ export async function runSetup({ baseURL }) {
   }
 
   // ── 2. Snapshot mutable accounts, bounded-concurrency ──────────────────
-  const mutable = Object.entries(ACCOUNTS).filter(([, a]) => a.mutable);
+  const mutable = Object.entries(ACCOUNTS).filter(([key, a]) => a.mutable && accountKeys.includes(key));
   const snapshotStart = Date.now();
 
   const snapshotResults = await runWithConcurrency(

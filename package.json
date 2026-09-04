@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
+    "test:scoped": "node scripts/run-scoped-spec.mjs",
     "lint": "eslint tests",
     "format": "prettier --write tests",
     "eval:ai-coach": "node qa/ai-coach-eval/run.js"
