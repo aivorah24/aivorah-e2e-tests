@@ -30,10 +30,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Every test must run in parallel with no dependency on another test's
-     state (see tests/helpers/accounts.js's mutable-account convention) -
-     CI runs fully parallel too, same as local. */
-  workers: undefined,
+  /* Worker count, e.g. PW_WORKERS=2 locally. */
+  workers: process.env.PW_WORKERS ? Number(process.env.PW_WORKERS) : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Where videos/traces/screenshots land - a plain folder you can open and

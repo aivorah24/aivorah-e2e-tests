@@ -105,6 +105,11 @@ export const ACCOUNTS = {
   // deletes parent-assigned daily tasks for a linked child) - see
   // OWNERSHIP below.
   'parent-k': { email: process.env.E2E_PARENT_K, role: 'parent', school: 'TSRA', mutable: true },
+  // Dedicated to tests/parent/settings/settings.spec.js (mutates display
+  // name, location, password, notification prefs) - see OWNERSHIP below.
+  // Created via the real Firebase client signup flow + /user/sync, same
+  // path real users go through (not the legacy Supabase-Auth seed script).
+  'parent-l': { email: process.env.E2E_PARENT_L, role: 'parent', school: 'TSRA', mutable: true },
 
   // ── student ──
   'student-a': {
@@ -401,6 +406,7 @@ export const OWNERSHIP = {
   'parent-i': 'tests/parent/profile/profile.spec.js (PATCHes its own name/phone/location)',
   'parent-j': 'tests/parent/my-kids/*.spec.js (creates/links real child accounts via the My Kids UI)',
   'parent-k': 'tests/parent/daily-tasks/daily-tasks.spec.js (creates/deletes parent-assigned daily tasks)',
+  'parent-l': 'tests/parent/settings/settings.spec.js (mutates name/location/password/notification prefs)',
   'parent-g':
     'tests/parent/dashboard/achievements/achievements.spec.js (writes to student-parent-g); ' +
     'ALSO tests/student/daily-habits/daily-habits.spec.js (owns the "unchecking a habit" test)',
