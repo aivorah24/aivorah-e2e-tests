@@ -61,6 +61,14 @@ export const ACCOUNTS = {
   // never collide with teacher-dashboard analytics or Assignments specs
   // reading a shared account's student list.
   'teacher-e': { email: process.env.E2E_TEACHER_E, role: 'teacher', school: 'E2E School Content', mutable: true },
+  // Dedicated to tests/teacher/switch-profile/switch-profile.spec.js. Ported
+  // from the aivorah-frontend/e2e legacy copy (2026-09-01) when that copy was
+  // retired in favor of this repo. Hardcoded (not env-var-backed like the
+  // rest of this file) — created ad hoc via the real signup UI. This spec
+  // permanently mutates it single-role -> dual-role via a real "Also a
+  // parent?" onboarding flow — cannot be undone by a simple field restore,
+  // so this account must never be reused by another spec.
+  'teacher-g': { email: 'e2e.teacher.g@aivorah.test', role: 'teacher', school: 'E2E School Content', mutable: true },
 
   // ── parent ──
   'parent-a': { email: process.env.E2E_PARENT_A, role: 'parent', school: 'TSRA', mutable: false },
@@ -110,6 +118,27 @@ export const ACCOUNTS = {
   // Created via the real Firebase client signup flow + /user/sync, same
   // path real users go through (not the legacy Supabase-Auth seed script).
   'parent-l': { email: process.env.E2E_PARENT_L, role: 'parent', school: 'TSRA', mutable: true },
+
+  // parent-onboard-1..6 - dedicated to tests/parent/onboarding.spec.js, ONE
+  // per FB1-FB6 scenario, mirroring student-d1..d10's one-account-per-test
+  // isolation (see that spec's header comment for why: parallel workers
+  // each reset+complete onboarding independently, so sharing an account
+  // would let one test's reset stomp a concurrent test's in-progress form).
+  // Each starts real (has a real Firebase login) but resetOnboarding() is
+  // called at the top of every test to force onboarding_complete back to
+  // false before that test's own run, regardless of what a previous run
+  // left behind.
+  // Hardcoded (not env-var-backed), same convention as teacher-g above and
+  // for the same reason: this repo already sits at GitHub's 100-combined-
+  // secrets-per-workflow-run ceiling, and a fixed E2E-only test email isn't
+  // sensitive on its own (the shared E2E_PASSWORD secret is what matters).
+  // Provisioned by scripts/provisionOnboardingAccounts.mjs.
+  'parent-onboard-1': { email: 'e2e.parent.onboard.1@aivorah.test', role: 'parent', school: 'TSRA', mutable: true },
+  'parent-onboard-2': { email: 'e2e.parent.onboard.2@aivorah.test', role: 'parent', school: 'TSRA', mutable: true },
+  'parent-onboard-3': { email: 'e2e.parent.onboard.3@aivorah.test', role: 'parent', school: 'TSRA', mutable: true },
+  'parent-onboard-4': { email: 'e2e.parent.onboard.4@aivorah.test', role: 'parent', school: 'TSRA', mutable: true },
+  'parent-onboard-5': { email: 'e2e.parent.onboard.5@aivorah.test', role: 'parent', school: 'TSRA', mutable: true },
+  'parent-onboard-6': { email: 'e2e.parent.onboard.6@aivorah.test', role: 'parent', school: 'TSRA', mutable: true },
 
   // ── student ──
   'student-a': {
@@ -187,6 +216,15 @@ export const ACCOUNTS = {
     school: 'TSRA',
     mutable: true,
   },
+  // Dedicated to tests/parent/onboarding.spec.js's FB5 scenario ONLY — the
+  // link target for "parent links an existing 14+ account instead of
+  // creating a new one." Must stay permanently unlinked to any parent
+  // between runs; the test verifies this before linking and removes the
+  // link (not the account) in its own cleanup. Never used by any other
+  // spec - a stray link from elsewhere would make FB5 non-deterministic.
+  // Hardcoded for the same reason as parent-onboard-1..6 above. Provisioned
+  // by scripts/provisionOnboardingAccounts.mjs.
+  'student-onboard-linktarget': { email: 'e2e.student.onboard.linktarget@aivorah.test', role: 'student', school: 'TSRA', mutable: true },
   'student-e': { email: process.env.E2E_STUDENT_E, role: 'student', school: 'TSRA', mutable: true },
   'student-f': { email: process.env.E2E_STUDENT_F, role: 'student', school: 'TSRA', mutable: true },
   'student-g': { email: process.env.E2E_STUDENT_G, role: 'student', school: 'TSRA', mutable: true },
@@ -369,6 +407,7 @@ export const OWNERSHIP = {
   'teacher-d':
     'tests/student/assignments/assignments.spec.js (cross-persona test - assigns a real quiz to student-r via the real Teacher Assignments UI)',
   'teacher-e': 'tests/teacher/students/*.spec.js (create/link/bulk-import/remove/promote real students on its own roster)',
+  'teacher-g': 'tests/teacher/switch-profile/switch-profile.spec.js (permanently adds a real parent profile via onboarding, becoming dual-role - cannot be undone by a simple field restore, so this account must never be reused)',
   'parent-b': 'parent controls tests            (writes to student-e)',
   'parent-c': 'parent controls tests            (writes to student-f)',
   'admin-b': 'school-admin mutation tests       (create/delete student)',
@@ -403,6 +442,12 @@ export const OWNERSHIP = {
   'student-parent-f6': 'weekly-snapshot.spec.js (mutated by parent-f6)',
   'parent-f7': 'weekly-snapshot.spec.js (Top Interest/Learning Style/AI Insight)',
   'student-parent-f7': 'weekly-snapshot.spec.js (mutated by parent-f7)',
+  'parent-onboard-1..6':
+    'tests/parent/onboarding.spec.js (one account per FB1-FB6 scenario - each resets ' +
+    'its own onboarding_complete flag and completes/blocks onboarding independently)',
+  'student-onboard-linktarget':
+    'tests/parent/onboarding.spec.js FB5 ONLY (link-target for the 14+ existing-account ' +
+    'link test - must stay unlinked between runs, never reused elsewhere)',
   'parent-i': 'tests/parent/profile/profile.spec.js (PATCHes its own name/phone/location)',
   'parent-j': 'tests/parent/my-kids/*.spec.js (creates/links real child accounts via the My Kids UI)',
   'parent-k': 'tests/parent/daily-tasks/daily-tasks.spec.js (creates/deletes parent-assigned daily tasks)',

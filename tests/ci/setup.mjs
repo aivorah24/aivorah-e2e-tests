@@ -25,7 +25,15 @@ if (!baseURL) {
   process.exit(1);
 }
 
-const { loginFailures } = await runSetup({ baseURL });
+// Optional comma-separated account keys (e.g. "parent-onboard-1,parent-onboard-2")
+// to scope this run to only the accounts a targeted run needs, instead of
+// logging in every account. Was previously read nowhere in this repo's
+// setup.mjs (only aivorah-frontend/e2e's legacy copy had it) - wired
+// through to runSetup's existing onlyAccounts support, found while
+// refreshing 7 onboarding test accounts' sessions after a Supabase change.
+const accountFilter = (process.env.ACCOUNT_FILTER || '').split(',').map((k) => k.trim()).filter(Boolean);
+
+const { loginFailures } = await runSetup({ baseURL, onlyAccounts: accountFilter.length ? accountFilter : undefined });
 
 // Unlike the Playwright-hook path, a CI setup job that couldn't log ANY
 // account in at all is worth failing loudly and early, rather than letting
@@ -34,7 +42,9 @@ const { loginFailures } = await runSetup({ baseURL });
 // fail individually in whichever shard picks them up, exactly like the
 // local dev path.
 const { ACCOUNTS } = await import('../helpers/accounts.js');
-const totalAccounts = Object.keys(ACCOUNTS).length;
+const totalAccounts = accountFilter.length
+  ? accountFilter.filter((k) => ACCOUNTS[k]).length
+  : Object.keys(ACCOUNTS).length;
 if (loginFailures.length === totalAccounts) {
   console.error('[ci/setup] Every single account failed to log in - treating this as a hard environment failure.');
   process.exit(1);
