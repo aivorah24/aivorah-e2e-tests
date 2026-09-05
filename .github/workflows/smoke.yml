@@ -1,0 +1,118 @@
+name: Smoke
+
+# Runs every 15 minutes against real staging infra as a health check: can
+# each of our 3 personas log in and reach their core landing screen? Six
+# read-only specs total (login + core screen, per persona). This is
+# intentionally NOT the full regression suite - see e2e.yml for that
+# (nightly, workflow_dispatch). Keep this list small; its whole value is
+# fast, reliable signal every 15 minutes.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+
+env:
+  BASE_URL: https://aivorah-frontend-git-master-aivorah24-9470s-projects.vercel.app
+  BACKEND_URL: https://aivorah.ai
+  E2E_PARENT_K: e2e.parent.k@aivorah.test
+  SCHEDULE_SERVICE_URL: https://aivorah-schedule-service.onrender.com
+  CHALLENGES_SERVICE_URL: https://aivorah-challenges-service.onrender.com
+  LEADERBOARD_SERVICE_URL: https://aivorah-leaderboard-service.onrender.com
+  ASSIGNMENTS_SERVICE_URL: https://aivorah-assignments-service.onrender.com
+  PROFILE_SERVICE_URL: https://aivorah-profile-service.onrender.com
+  TEACHER_DASHBOARD_SERVICE_URL: https://aivorah-teacher-dashboard-service.onrender.com
+  LEARNING_PATHS_SERVICE_URL: https://aivorah-learning-paths-service.onrender.com
+  STUDENTS_SERVICE_URL: https://aivorah-students-service.onrender.com
+  DAILY_HABITS_SERVICE_URL: https://aivorah-daily-habits-service.onrender.com
+  WORLD_AND_YOU_SERVICE_URL: https://aivorah-world-and-you-service.onrender.com
+  AI_COACH_SERVICE_URL: https://aivorah-ai-coach-service.onrender.com
+  BEDTIME_STORIES_SERVICE_URL: https://aivorah-bedtime-stories-service.onrender.com
+  HELP_SERVICE_URL: https://aivorah-help-center-service.onrender.com
+  AUTH_SERVICE_URL: https://aivorah-auth-service.onrender.com
+
+jobs:
+  # Setup only logs in the 3 accounts the smoke specs actually need
+  # (parent-a, student-a, teacher-a - all read-only, safe to share) via
+  # ACCOUNT_FILTER, not all ~64, so this stays fast enough for a 15-minute
+  # cadence. The b2b-login specs don't need a saved session at all - they
+  # log in fresh through the UI using the B2B_* secrets below.
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium chrome
+      - name: Log in the 3 smoke accounts + snapshot profiles
+        run: node tests/ci/setup.mjs
+        env:
+          ACCOUNT_FILTER: 'parent-a,student-a,teacher-a'
+          E2E_PARENT_A: ${{ secrets.E2E_PARENT_A }}
+          E2E_STUDENT_A: ${{ secrets.E2E_STUDENT_A }}
+          E2E_TEACHER_A: ${{ secrets.E2E_TEACHER_A }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      - name: Upload sessions + snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-session
+          path: |
+            .auth/**
+            .profile-snapshot.json
+          include-hidden-files: true
+          retention-days: 1
+
+  test:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium chrome
+      - name: Download sessions + snapshot artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: smoke-session
+      - name: Run smoke specs
+        run: |
+          npx playwright test \
+            tests/parent/b2b-login.spec.js \
+            tests/parent/dashboard/dashboard.spec.js \
+            tests/student/b2b-login.spec.js \
+            tests/student/learning-paths.spec.js \
+            tests/teacher/b2b-login.spec.js \
+            tests/teacher/dashboard/dashboard.spec.js \
+            --reporter=html
+        env:
+          PLAYWRIGHT_SKIP_GLOBAL_HOOKS: 'true'
+          B2B_PARENT_EMAIL: ${{ secrets.B2B_PARENT_EMAIL }}
+          B2B_PARENT_PASSWORD: ${{ secrets.B2B_PARENT_PASSWORD }}
+          B2B_STUDENT_EMAIL: ${{ secrets.B2B_STUDENT_EMAIL }}
+          B2B_STUDENT_PASSWORD: ${{ secrets.B2B_STUDENT_PASSWORD }}
+          B2B_TEACHER_EMAIL: ${{ secrets.B2B_TEACHER_EMAIL }}
+          B2B_TEACHER_PASSWORD: ${{ secrets.B2B_TEACHER_PASSWORD }}
+          E2E_PARENT_A: ${{ secrets.E2E_PARENT_A }}
+          E2E_STUDENT_A: ${{ secrets.E2E_STUDENT_A }}
+          E2E_TEACHER_A: ${{ secrets.E2E_TEACHER_A }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-html-report
+          path: playwright-report
+          retention-days: 3

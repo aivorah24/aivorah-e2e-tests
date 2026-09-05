@@ -15,6 +15,12 @@ on:
         description: 'Optional Playwright --grep pattern to scope this run to specific spec(s), e.g. "My Kids"'
         required: false
         default: ''
+  schedule:
+    # Nightly full regression against real staging infra. github.event.inputs
+    # is empty on a schedule trigger, so this runs the full unfiltered suite
+    # across the default 4 shards, same as a no-input workflow_dispatch run.
+    # Times are UTC.
+    - cron: '0 2 * * *'
 
 env:
   # -- Testing environment targets (not secrets - public hostnames) --
