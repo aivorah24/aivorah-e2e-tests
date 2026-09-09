@@ -196,6 +196,38 @@ export async function createAssignment(request, { teacherId, studentId, title, d
   return res.json();
 }
 
+// Creates a quiz-type assignment with a single real free-text/short-answer
+// question, for B03 grading-correctness regression tests. QuizModal.tsx
+// renders `type: 'short_answer'` as a TextInput (confirmed by reading its
+// source) - the real UI a student uses either way.
+//
+// The actual grading call is a live LLM (Groq) - not usable as a
+// deterministic CI assertion (see B03 regression suite header comment for
+// why). This helper is only for real UI setup/rendering; the grading
+// RESPONSE itself is intercepted and replaced with a fixed value via
+// page.route() in the test, the same mocking idiom assignments.spec.js
+// already uses for its loading/error-state tests below.
+export async function createShortAnswerAssignment(request, { teacherId, studentId, title, dueDate, subject, question, expectedAnswer }) {
+  const res = await request.post(ASSIGNMENTS_SERVICE_URL + '/assignments', {
+    data: {
+      title,
+      dueDate,
+      studentId,
+      createdById: teacherId,
+      createdByRole: 'teacher',
+      subject,
+      type: 'quiz',
+      quizQuestions: [
+        { question, type: 'short_answer', correct: expectedAnswer },
+      ],
+    },
+  });
+  if (!res.ok()) {
+    throw new Error(`POST /assignments failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
 // Submits the quiz as a student with the correct MCQ answer, the same way
 // the real submit flow does - scores 100 deterministically (see
 // createAssignment's comment on why plain assignments can't be used here).
