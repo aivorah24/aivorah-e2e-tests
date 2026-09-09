@@ -61,6 +61,31 @@ export const ACCOUNTS = {
   // never collide with teacher-dashboard analytics or Assignments specs
   // reading a shared account's student list.
   'teacher-e': { email: process.env.E2E_TEACHER_E, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-f': { email: process.env.E2E_TEACHER_F, role: 'teacher', school: 'E2E School Content', mutable: true },
+  // Hardcoded (not env-var-backed like the rest of this file) - created ad hoc
+  // via the real signup UI as a same-session replacement for 'teacher-f'
+  // above. Same ownership rules apply: dedicated to switch-profile.spec.js,
+  // permanently mutated single-role -> dual-role by that spec's core action.
+  'teacher-g': { email: 'e2e.teacher.g@aivorah.test', role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-h': { email: process.env.E2E_TEACHER_H, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-i': { email: process.env.E2E_TEACHER_I, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-j': { email: process.env.E2E_TEACHER_J, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-k': { email: process.env.E2E_TEACHER_K, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-l': { email: process.env.E2E_TEACHER_L, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-m': { email: process.env.E2E_TEACHER_M, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-n': { email: process.env.E2E_TEACHER_N, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-o': { email: process.env.E2E_TEACHER_O, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-p': { email: process.env.E2E_TEACHER_P, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-q': { email: process.env.E2E_TEACHER_Q, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-r': { email: process.env.E2E_TEACHER_R, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-s': { email: process.env.E2E_TEACHER_S, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-t': { email: process.env.E2E_TEACHER_T, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-u': { email: process.env.E2E_TEACHER_U, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-v': { email: process.env.E2E_TEACHER_V, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-w': { email: process.env.E2E_TEACHER_W, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-x': { email: process.env.E2E_TEACHER_X, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-y': { email: process.env.E2E_TEACHER_Y, role: 'teacher', school: 'E2E School Content', mutable: true },
+  'teacher-z': { email: process.env.E2E_TEACHER_Z, role: 'teacher', school: 'E2E School Content', mutable: true },
 
   // ── parent ──
   'parent-a': { email: process.env.E2E_PARENT_A, role: 'parent', school: 'TSRA', mutable: false },
@@ -195,6 +220,11 @@ export const ACCOUNTS = {
   // updates activity/topic stats via exploreTopic() - isolated so it can't
   // collide with student-a (shared, read-only) or any other spec's account).
   'student-i': { email: process.env.E2E_STUDENT_I, role: 'student', school: 'TSRA', mutable: true },
+  // Real students linked to teacher-i (TSRA/IB PYP), used by the teacher
+  // assignments bulk-upload/library-and-assignment-flow/upload-worksheet
+  // specs to verify per-student vs All-Students assignment targeting.
+  'student-i1': { email: process.env.E2E_STUDENT_I1, role: 'student', school: 'TSRA', mutable: true },
+  'student-i2': { email: process.env.E2E_STUDENT_I2, role: 'student', school: 'TSRA', mutable: true },
   // IB PYP/Grade 4, dedicated to tests/student/challenges/*.spec.js - own
   // starting/completing/timer flow mutates XP, challengesCompleted and
   // streak. Deliberately IB PYP/Grade 4, not CBSE: 19 of its 22 challenges
