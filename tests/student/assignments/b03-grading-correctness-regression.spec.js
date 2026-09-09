@@ -73,10 +73,14 @@ function uniqueTitle(prefix) {
   return `E2E Assign ${prefix} ${Date.now()}`;
 }
 
+// Matches assignments.spec.js's own openAssignmentsReady() - waiting on
+// the page title rather than on the loading spinner disappearing is more
+// tolerant of real backend latency (cold starts on the Render free tier,
+// 6 parallel workers hitting the same service at once).
 async function openAssignmentsReady(page) {
   await openAssignments(page);
+  await expect(page.getByText('Assignments', { exact: true }).first()).toBeVisible({ timeout: 20000 });
   await dismissAnnouncementIfPresent(page);
-  await expect(page.getByTestId('assignments-loading')).toHaveCount(0, { timeout: 15000 });
 }
 
 // Mocks the grading response for exactly this assignment's /submit call.
