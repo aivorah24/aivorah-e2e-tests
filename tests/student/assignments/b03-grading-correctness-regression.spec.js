@@ -56,7 +56,7 @@ import { test, expect } from '@playwright/test';
 export const REQUIRED_ACCOUNTS = ['student-r'];
 import { applySession, statePath } from '../../helpers/auth.js';
 import { accountFor } from '../../helpers/accounts.js';
-import { getUserIdByEmail, createShortAnswerAssignment, deleteAssignment } from '../../helpers/api.js';
+import { getUserIdByEmail, createShortAnswerAssignment, deleteAssignment, getAssignmentsForStudent } from '../../helpers/api.js';
 import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
 import { openAssignments, assignmentStartButton } from '../../helpers/assignmentsLocators.js';
 
@@ -125,13 +125,36 @@ test.describe('B03 regression — free-text grading correctness reaches the real
       question,
       expectedAnswer: expected,
     });
+    // DIAGNOSTIC: confirm the backend's own list endpoint (the exact same
+    // GET the UI calls) actually returns this assignment before touching
+    // the UI at all - isolates "backend never has it" from "UI/locator
+    // never finds it". Polls (no fixed sleep) up to 20s.
+    const deadline = Date.now() + 20000;
+    let foundInApi = false;
+    while (Date.now() < deadline) {
+      const list = await getAssignmentsForStudent(request, studentId);
+      foundInApi = list.some((a) => a.id === created.id);
+      if (foundInApi) break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    console.log(`[B03 diagnostic] assignment ${created.id} in GET /assignments list: ${foundInApi}`);
+
     return { studentId, title, created };
   }
 
   async function answerAndSubmit(page, created, answerText, mockOpts) {
     await mockSubmitResponse(page, created.id, mockOpts);
     await openAssignmentsReady(page);
-    await assignmentStartButton(page, created.id).click({ timeout: 15000 });
+    // DIAGNOSTIC: wait for the card to actually attach to the DOM (not a
+    // fixed sleep) before clicking, with a longer timeout and console
+    // logging so the CI trace shows whether it ever appears at all.
+    const startBtn = assignmentStartButton(page, created.id);
+    await startBtn.waitFor({ state: 'attached', timeout: 25000 }).catch(async (err) => {
+      const totalCards = await page.getByText('items', { exact: false }).allTextContents();
+      console.log(`[B03 diagnostic] card for ${created.id} never attached. List summary text: ${JSON.stringify(totalCards)}`);
+      throw err;
+    });
+    await startBtn.click({ timeout: 15000 });
     await expect(page.getByText(FARM_QUESTION, { exact: true })).toBeVisible({ timeout: 15000 });
     await page.getByPlaceholder('Write your answer here...').fill(answerText);
     await page.getByText('Save Answer', { exact: true }).click();

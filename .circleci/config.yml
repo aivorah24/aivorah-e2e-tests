@@ -51,9 +51,14 @@ jobs:
       - run:
           name: Install Playwright browsers
           command: npx playwright install --with-deps chromium
+      # DIAGNOSTIC MODE (temporary): single scenario, no retries, workers=1 -
+      # isolating whether the failure is a locator/UI-sync issue or a
+      # 6-parallel-workers-sharing-one-account concurrency issue, per
+      # explicit instruction not to assume either cause without evidence.
+      # Revert to the full 6-scenario command once root cause is confirmed.
       - run:
           name: Run B03 regression spec (scoped to student-r only)
-          command: node scripts/run-scoped-spec.mjs tests/student/assignments/b03-grading-correctness-regression.spec.js --reporter=line
+          command: node scripts/run-scoped-spec.mjs tests/student/assignments/b03-grading-correctness-regression.spec.js -g "exact correct answer" --retries=0 --workers=1 --reporter=line --trace=on
       - store_artifacts:
           path: recordings
           destination: recordings
