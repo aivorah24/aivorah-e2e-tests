@@ -54,6 +54,7 @@ import { test, expect } from '@playwright/test';
 // account instead of all ~90, so a single-spec local run doesn't hang doing
 // unrelated full-suite login/seeding.
 export const REQUIRED_ACCOUNTS = ['student-r'];
+import { applySession, statePath } from '../../helpers/auth.js';
 import { accountFor } from '../../helpers/accounts.js';
 import { getUserIdByEmail, createShortAnswerAssignment, deleteAssignment } from '../../helpers/api.js';
 import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
@@ -102,6 +103,12 @@ async function mockSubmitResponse(page, assignmentId, { score, mismatchedCorrect
 }
 
 test.describe('B03 regression — free-text grading correctness reaches the real result screen', () => {
+  test.use({ storageState: statePath(ACCOUNT) });
+
+  test.beforeEach(async ({ context }) => {
+    await applySession(context, ACCOUNT);
+  });
+
   async function setupAssignment(request, question = FARM_QUESTION, expected = FARM_EXPECTED_ANSWER) {
     const studentId = await getUserIdByEmail(request, accountFor(ACCOUNT).email);
     const title = uniqueTitle('B03 Grading');
