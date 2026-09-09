@@ -49,11 +49,15 @@ const STUDENTS_SERVICE_URL        = process.env.STUDENTS_SERVICE_URL        || '
 // project (Dev DB) as STUDENTS_SERVICE_URL, so child ids resolved via that
 // service line up with this one's parent_children/screen_time checks.
 const PARENTAL_CONTROLS_SERVICE_URL = process.env.PARENTAL_CONTROLS_SERVICE_URL || 'http://localhost:3018';
-export { BACKEND_URL, CHALLENGES_SERVICE_URL, STUDENTS_SERVICE_URL, PARENTAL_CONTROLS_SERVICE_URL };
 const LEADERBOARD_SERVICE_URL     = process.env.LEADERBOARD_SERVICE_URL     || 'http://localhost:4003';
 const ASSIGNMENTS_SERVICE_URL     = process.env.ASSIGNMENTS_SERVICE_URL     || 'http://localhost:3015';
 const PROFILE_SERVICE_URL         = process.env.PROFILE_SERVICE_URL         || 'http://localhost:4002';
 const TEACHER_DASHBOARD_SERVICE_URL = process.env.TEACHER_DASHBOARD_SERVICE_URL || 'http://localhost:3016';
+export {
+  BACKEND_URL, SCHEDULE_SERVICE_URL, CHALLENGES_SERVICE_URL, STUDENTS_SERVICE_URL,
+  PARENTAL_CONTROLS_SERVICE_URL, LEADERBOARD_SERVICE_URL, ASSIGNMENTS_SERVICE_URL,
+  PROFILE_SERVICE_URL, TEACHER_DASHBOARD_SERVICE_URL,
+};
 
 export async function getTeacherIdByEmail(email) {
   const { data, error } = await supabaseAdmin
