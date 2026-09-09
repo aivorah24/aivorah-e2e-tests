@@ -255,8 +255,17 @@ export async function getAssignmentsForStudent(request, studentId) {
 // cleanup so assignments created for one test run don't pile up on
 // student-r's account across repeated runs (same convention as
 // deleteScheduleEvent).
+// Was calling BACKEND_URL (the legacy monolith) while createAssignment/
+// createShortAnswerAssignment create via ASSIGNMENTS_SERVICE_URL (the real,
+// live assignments microservice - see those functions' own comments) - the
+// monolith's own /assignments/:id route returned 200 without an error, but
+// the row it "deleted" wasn't the one the microservice actually stored, so
+// cleanup silently no-op'd. Confirmed by direct testing on student-r's real
+// account: it had accumulated 174 leaked test assignments before this fix
+// (all purged manually as part of this fix, see git history for the
+// verification steps) - now points at the same service that creates them.
 export async function deleteAssignment(request, id) {
-  const res = await request.delete(`${BACKEND_URL}/assignments/${id}`);
+  const res = await request.delete(`${ASSIGNMENTS_SERVICE_URL}/assignments/${id}`);
   if (!res.ok()) {
     throw new Error(`DELETE /assignments/${id} failed: ${res.status()} ${await res.text()}`);
   }
