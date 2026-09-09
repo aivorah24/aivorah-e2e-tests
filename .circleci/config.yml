@@ -28,6 +28,16 @@ jobs:
       PROFILE_SERVICE_URL: https://aivorah-profile-service.onrender.com
     steps:
       - checkout
+      # The playwright:v1.48.0-jammy image ships an older Node.js, but
+      # @supabase/supabase-js's realtime client requires Node 22+ (native
+      # WebSocket) - matches the Node 22 GitHub Actions already pins via
+      # actions/setup-node in e2e.yml/smoke.yml.
+      - run:
+          name: Install Node.js 22
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+            apt-get install -y nodejs
+            node --version
       - restore_cache:
           keys:
             - npm-deps-v1-{{ checksum "package-lock.json" }}
