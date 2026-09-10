@@ -439,6 +439,57 @@ test.describe('Student Challenges', () => {
       await expect(page.getByText(target.title, { exact: true })).toBeVisible({ timeout: 15000 });
     });
 
+    // Bug 2 RCA: useQuizSession.ts's submitQuiz() used to silently no-op /
+    // swallow a failed POST /challenges/:id/complete - the Submit button's
+    // spinner would clear and nothing would happen, no error, no result -
+    // exactly "the submit button doesn't work". Fixed to Alert.alert on a
+    // non-ok response instead. Real email/backend outages can't be forced on
+    // demand, so this deterministically simulates the failure via route
+    // interception, the same technique used for Bug 1's reset-password spec.
+    test('a failed submission shows an error instead of silently doing nothing (Bug 2)', async ({
+      page,
+      request,
+    }) => {
+      const studentId = await getUserIdByEmail(request, accountFor(ACCOUNT).email);
+      const target = await pickChallenge(request, studentId, 4);
+
+      await page.reload();
+      await dismissAnnouncementIfPresent(page);
+      if (target.status === 'assigned') await tab(page, 'Assigned').click();
+
+      await startButtonForCard(page, target.title).click();
+      await expect(quizModal(page)).toBeVisible({ timeout: 10000 });
+      await expect(questionBlock(page, 1, target.questionCount)).toBeVisible({ timeout: 20000 });
+
+      for (let qi = 1; qi <= target.questionCount; qi++) {
+        await answerQuestion(page, qi, target.questionCount);
+      }
+      await expect(submitAnswersButton(page)).not.toHaveAttribute('aria-disabled', 'true');
+
+      await page.route('**/challenges/*/complete', (route) =>
+        route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'down' }) }),
+      );
+
+      let dialogMessage = '';
+      page.once('dialog', async (d) => { dialogMessage = d.message(); await d.accept(); });
+
+      await submitAnswersButton(page).click();
+
+      await expect.poll(() => dialogMessage, { timeout: 15000 }).toContain('Could not submit');
+
+      // No false result screen, and the challenge must still be resubmittable -
+      // never silently stuck "completed" on a request that actually failed.
+      await expect(resultScore(page)).toHaveCount(0);
+      await expect(submitAnswersButton(page)).toBeVisible();
+
+      // Clean up the route mock and prove the SAME challenge can genuinely be
+      // submitted once the backend is reachable again - not just that it fails
+      // safely, but that failing safely didn't corrupt anything.
+      await page.unroute('**/challenges/*/complete');
+      await submitAnswersButton(page).click();
+      await expect(resultScore(page)).toBeVisible({ timeout: 20000 });
+    });
+
     test('the quiz modal can be closed safely without corrupting challenge state', async ({
       page,
       request,
