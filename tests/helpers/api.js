@@ -285,7 +285,7 @@ export async function getAssignmentsForStudent(request, studentId) {
 // student-r's account across repeated runs (same convention as
 // deleteScheduleEvent).
 export async function deleteAssignment(request, id) {
-  const res = await request.delete(`${BACKEND_URL}/assignments/${id}`);
+  const res = await request.delete(`${ASSIGNMENTS_SERVICE_URL}/assignments/${id}`);
   if (!res.ok()) {
     throw new Error(`DELETE /assignments/${id} failed: ${res.status()} ${await res.text()}`);
   }
