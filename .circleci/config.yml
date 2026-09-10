@@ -1,31 +1,39 @@
 version: 2.1
 
-# Runs ONLY the B03 grading-correctness regression spec
-# (tests/student/assignments/b03-grading-correctness-regression.spec.js),
-# on demand, against the same real staging targets e2e.yml (GitHub Actions)
-# already uses. This repo's full/nightly regression suite still lives in
-# .github/workflows/e2e.yml — this CircleCI pipeline is intentionally
-# narrow: one spec, one job, no shards, no ~90-account setup. It reuses
-# scripts/run-scoped-spec.mjs (already existed for exactly this — scoping
-# local/CI runs to only the accounts one spec declares via
+# Runs the B03 grading-correctness and B04 drawing-evidence regression specs
+# on demand, against a real deployed target. This repo's full/nightly
+# regression suite still lives in .github/workflows/e2e.yml — this CircleCI
+# pipeline is intentionally narrow: one job per spec, no shards, no ~90-account
+# setup. It reuses scripts/run-scoped-spec.mjs (already existed for exactly
+# this — scoping local/CI runs to only the accounts one spec declares via
 # REQUIRED_ACCOUNTS) instead of duplicating that logic here.
 #
+# BASE_URL currently points at the aivorah-frontend "ci/exclude-a11y-known-bugs"
+# branch's Vercel preview (carries the B02/B04 frontend fixes) while that
+# branch is being verified pre-merge — point back at the git-master alias
+# once it merges. ASSIGNMENTS_SERVICE_URL is the main Render service, which
+# already has the B02/B03/B04 backend fixes merged and deployed (2026-09-10).
+#
 # Required CircleCI project env vars (Project Settings > Environment
-# Variables) — only what this one spec's REQUIRED_ACCOUNTS (['student-r'])
-# needs, not the full ~90-secret set GitHub Actions carries:
+# Variables) — only what these specs' REQUIRED_ACCOUNTS (['student-r'])
+# need, not the full ~90-secret set GitHub Actions carries:
 #   E2E_STUDENT_R, E2E_PASSWORD, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 #   NVIDIA_NIM_API_KEY
 
-jobs:
-  b03-grading-correctness:
+executors:
+  playwright:
     docker:
       - image: mcr.microsoft.com/playwright:v1.48.0-jammy
     resource_class: medium
     environment:
-      BASE_URL: https://aivorah-frontend-git-master-aivorah24-9470s-projects.vercel.app
+      BASE_URL: https://aivorah-frontend-git-ci-exclude-0c240a-aivorah24-9470s-projects.vercel.app
       BACKEND_URL: https://aivorah.ai
       ASSIGNMENTS_SERVICE_URL: https://aivorah-assignments-service.onrender.com
       PROFILE_SERVICE_URL: https://aivorah-profile-service.onrender.com
+
+jobs:
+  b03-grading-correctness:
+    executor: playwright
     steps:
       - checkout
       - restore_cache:
@@ -50,8 +58,35 @@ jobs:
       - store_artifacts:
           path: playwright-report
           destination: playwright-report
+  b04-drawing-submission:
+    executor: playwright
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - npm-deps-v1-{{ checksum "package-lock.json" }}
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - save_cache:
+          key: npm-deps-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - node_modules
+      - run:
+          name: Install Playwright browsers
+          command: npx playwright install --with-deps chromium
+      - run:
+          name: Run B04 drawing-submission spec (scoped to student-r only)
+          command: node scripts/run-scoped-spec.mjs tests/student/assignments/b04-drawing-submission.spec.js --reporter=line
+      - store_artifacts:
+          path: recordings
+          destination: recordings
+      - store_artifacts:
+          path: playwright-report
+          destination: playwright-report
 
 workflows:
-  b03-regression:
+  regression:
     jobs:
       - b03-grading-correctness
+      - b04-drawing-submission
