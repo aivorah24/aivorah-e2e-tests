@@ -79,6 +79,7 @@ jobs:
             if npx playwright test \
               tests/parent/b2b-login.spec.js \
               tests/parent/dashboard/dashboard.spec.js \
+              tests/parent/my-kids/reset-child-password.spec.js \
               tests/student/b2b-login.spec.js \
               tests/student/learning-paths.spec.js \
               tests/teacher/b2b-login.spec.js \
