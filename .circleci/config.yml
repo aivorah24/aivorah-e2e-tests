@@ -41,11 +41,17 @@ jobs:
       - run:
           name: Mark aivorah-frontend commit as pending
           command: |
+            # Diagnostic-only change on this throwaway branch (not proposed for
+            # master/main): a synthetic manual trigger (no real open PR behind
+            # target_sha) makes this status POST fail, which previously killed
+            # the whole job before checkout ever ran. || true lets the actual
+            # smoke specs run regardless of whether the cross-repo status
+            # callback succeeds.
             curl -sf -X POST \
               -H "Authorization: token $FRONTEND_STATUS_TOKEN" \
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/<< pipeline.parameters.target_repo >>/statuses/<< pipeline.parameters.target_sha >>" \
-              -d "{\"state\":\"pending\",\"context\":\"e2e/smoke (aivorah-e2e-tests)\",\"description\":\"Running smoke suite against PR preview...\",\"target_url\":\"https://app.circleci.com/pipelines/gh/aivorah24/aivorah-e2e-tests/<< pipeline.number >>\"}"
+              -d "{\"state\":\"pending\",\"context\":\"e2e/smoke (aivorah-e2e-tests)\",\"description\":\"Running smoke suite against PR preview...\",\"target_url\":\"https://app.circleci.com/pipelines/gh/aivorah24/aivorah-e2e-tests/<< pipeline.number >>\"}" || true
       - checkout
       - restore_cache:
           keys:
@@ -110,7 +116,7 @@ jobs:
               -H "Authorization: token $FRONTEND_STATUS_TOKEN" \
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/<< pipeline.parameters.target_repo >>/statuses/<< pipeline.parameters.target_sha >>" \
-              -d "{\"state\":\"${STATE}\",\"context\":\"e2e/smoke (aivorah-e2e-tests)\",\"description\":\"${DESC}\",\"target_url\":\"https://app.circleci.com/pipelines/gh/aivorah24/aivorah-e2e-tests/<< pipeline.number >>\"}"
+              -d "{\"state\":\"${STATE}\",\"context\":\"e2e/smoke (aivorah-e2e-tests)\",\"description\":\"${DESC}\",\"target_url\":\"https://app.circleci.com/pipelines/gh/aivorah24/aivorah-e2e-tests/<< pipeline.number >>\"}" || true
 
 workflows:
   pr-preview-check:
