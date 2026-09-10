@@ -1,5 +1,13 @@
 version: 2.1
 
+parameters:
+  run_b03:
+    type: boolean
+    default: true
+  run_b04:
+    type: boolean
+    default: true
+
 # Runs the B03 grading-correctness and B04 drawing-evidence regression specs
 # on demand, against a real deployed target. This repo's full/nightly
 # regression suite still lives in .github/workflows/e2e.yml — this CircleCI
@@ -97,6 +105,10 @@ jobs:
 
 workflows:
   regression:
+    when: << pipeline.parameters.run_b03 >>
     jobs:
       - b03-grading-correctness
+  regression-b04:
+    when: << pipeline.parameters.run_b04 >>
+    jobs:
       - b04-drawing-submission
