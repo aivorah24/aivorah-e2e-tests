@@ -228,6 +228,31 @@ export async function createShortAnswerAssignment(request, { teacherId, studentI
   return res.json();
 }
 
+// B04 — creates a quiz-type assignment with a single real drawing-response
+// question. QuizModal.tsx renders `type: 'drawing'` via PhotoUploadStep (the
+// same component ScaffoldedModal already uses for drawing/art_creation
+// steps). Mirrors createShortAnswerAssignment's pattern exactly.
+export async function createDrawingAssignment(request, { teacherId, studentId, title, dueDate, subject, question }) {
+  const res = await request.post(ASSIGNMENTS_SERVICE_URL + '/assignments', {
+    data: {
+      title,
+      dueDate,
+      studentId,
+      createdById: teacherId,
+      createdByRole: 'teacher',
+      subject,
+      type: 'quiz',
+      quizQuestions: [
+        { question, type: 'drawing', correct: '' },
+      ],
+    },
+  });
+  if (!res.ok()) {
+    throw new Error(`POST /assignments failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
 // Submits the quiz as a student with the correct MCQ answer, the same way
 // the real submit flow does - scores 100 deterministically (see
 // createAssignment's comment on why plain assignments can't be used here).
