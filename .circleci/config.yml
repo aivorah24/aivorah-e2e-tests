@@ -67,10 +67,10 @@ jobs:
           name: Install Playwright browsers
           command: npx playwright install --with-deps chromium chrome
       - run:
-          name: Log in the 3 smoke accounts + snapshot profiles
+          name: Log in the smoke accounts + snapshot profiles
           command: node tests/ci/setup.mjs
           environment:
-            ACCOUNT_FILTER: "parent-a,student-a,teacher-a"
+            ACCOUNT_FILTER: "parent-a,student-a,teacher-a,parent-j"
             BASE_URL: << pipeline.parameters.base_url >>
       - run:
           name: Run smoke specs against the PR preview
