@@ -272,6 +272,10 @@ export const ACCOUNTS = {
   // pending/completed counts can't collide with any other spec's account.
   // Seeded via server/scripts/seed-student-assignments-r.js.
   'student-r': { email: process.env.E2E_STUDENT_R, role: 'student', school: 'TSRA', mutable: true },
+  // Notification V2 specs only: student-notif (CBSE Grade 3) is linked to parent-notif and to a
+  // login-less E2E_NOTIF_TEACHER users row that only acts as the assigning teacher in API setup.
+  'student-notif': { email: process.env.E2E_NOTIF_STUDENT, role: 'student', school: 'TSRA', mutable: false },
+  'parent-notif': { email: process.env.E2E_NOTIF_PARENT, role: 'parent', school: 'TSRA', mutable: false },
   // Linked to teacher-a for Mathematics (see TEACHER_LINKS in seed-e2e-suite.js) -
   // the only student account wired to a teacher, so teacher-dashboard analytics
   // specs (Learning Path / Assignment / Challenge) can drive real activity and
@@ -434,6 +438,8 @@ export const OWNERSHIP = {
     'tests/student/learning-path/*.spec.js (CBSE Grade 6 - Learning Path/Lesson/Practice flow, "Fables and Folk Tales")',
   'student-r':
     'tests/student/assignments/*.spec.js (creates/submits real assignments via API+UI - stats/tabs/empty/error/detail flows)',
+  'student-notif': 'tests/notifications/*.spec.js (receives challenge/assignment notifications, reads them)',
+  'parent-notif': 'tests/notifications/*.spec.js (receives notifications for student-notif, reads them)',
 };
 
 export function accountFor(key) {
