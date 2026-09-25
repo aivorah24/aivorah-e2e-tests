@@ -23,7 +23,9 @@ import { accountFor } from '../helpers/accounts.js';
 import { applyServiceOverrides } from '../helpers/serviceOverrides.js';
 import { dismissAnnouncementIfPresent } from '../helpers/dismissAnnouncement.js';
 import { quizModal } from '../helpers/challengesLocators.js';
-import { listChallenges, assignChallenge, completeChallenge, createAssignment } from '../helpers/api.js';
+import {
+  listChallenges, assignChallenge, assignChallengeAsParent, completeChallenge, createAssignment,
+} from '../helpers/api.js';
 
 // Setup + login + waiting for the bell's poll exceeds the 30s default.
 test.describe.configure({ timeout: 90_000 });
@@ -36,6 +38,8 @@ const STUDENT_NAME = 'Notif Student';
 
 let ids; // { student, parent, teacher }
 let catalog; // Grade 3 CBSE challenges
+let otherCatalog; // Grade 3 IB PYP (same grade, so assignable to the student)
+let wrongGrade; // Grade 4 challenge (rejected by the grade guard)
 
 async function idOf(email) {
   const { data, error } = await db.from('users').select('id').eq('email', email.toLowerCase()).single();
@@ -47,6 +51,8 @@ test.beforeAll(async ({ request }) => {
   ids = { student: await idOf(STUDENT.email), parent: await idOf(PARENT.email), teacher: await idOf(TEACHER_EMAIL) };
   catalog = await listChallenges(request, { grade: 'Grade 3', curriculum: 'CBSE' });
   expect(catalog.length, 'need at least 5 Grade 3 CBSE challenges').toBeGreaterThanOrEqual(5);
+  otherCatalog = await listChallenges(request, { grade: 'Grade 3', curriculum: 'IB PYP' });
+  [wrongGrade] = await listChallenges(request, { grade: 'Grade 4', curriculum: 'CBSE' });
 });
 
 // ── per-test data, removed afterwards ──
@@ -242,4 +248,101 @@ test('8. re-assigning a completed challenge creates a new notification', async (
   const items = await bellItemWithText(page, `New challenge: ${ch.title}`);
   await expect(items).toHaveCount(2);
   await expect(items.first().getByTestId('notif-unread-dot')).toBeVisible();
+});
+
+test('9. class-wide assignment reaches the linked student and that student’s parent', async ({ browser, request }) => {
+  const title = `Notif E2E T9 class ${Date.now()}`;
+  // Teacher broadcast (no studentId): recipients are that teacher's linked students.
+  const res = await request.post(`${process.env.ASSIGNMENTS_SERVICE_URL}/assignments`, {
+    data: {
+      title, subject: 'Mathematics', dueDate: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10),
+      createdById: ids.teacher, createdByRole: 'teacher', curriculum: 'CBSE', grade: 'Grade 3', type: 'quiz',
+      quizQuestions: [{ question: 'What is 7 + 5?', type: 'mcq', options: ['12', '10', '13', '11'], correct: '12' }],
+    },
+  });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  const a = await res.json();
+  created.assignments.push({ id: a.id, title });
+
+  const student = await openAppAs(browser, 'student-notif');
+  await openBell(student);
+  await bellItemWithText(student, `New quiz: ${title}`);
+
+  const parent = await openAppAs(browser, 'parent-notif');
+  await openBell(parent);
+  await (await bellItemWithText(parent, `New quiz for ${STUDENT_NAME}: ${title}`)).first().click();
+  await expect(parent.getByRole('dialog').getByText(title).first()).toBeVisible({ timeout: 45000 });
+});
+
+test('10. the parent who assigns is not notified of their own action; the student is', async ({ browser, request }) => {
+  const ch = otherCatalog[0];
+  await resetChallenge(ch);
+  created.challenges.push(ch);
+  await assignChallengeAsParent(request, { challengeId: ch.id, studentId: ids.student, parentEmail: PARENT.email });
+
+  const student = await openAppAs(browser, 'student-notif');
+  await openBell(student);
+  await bellItemWithText(student, `New challenge: ${ch.title}`);
+
+  // Anchor on a notification the parent should get, then check the self-assigned one is absent.
+  const anchor = `Notif E2E T10 anchor ${Date.now()}`;
+  await teacherCreatesAssignment(request, anchor);
+  const parent = await openAppAs(browser, 'parent-notif');
+  await openBell(parent);
+  await bellItemWithText(parent, `New quiz for ${STUDENT_NAME}: ${anchor}`);
+  await expect(bellItems(parent).filter({ hasText: ch.title })).toHaveCount(0);
+});
+
+test('11. a rejected assign creates no notification', async ({ browser, request }) => {
+  const res = await request.post(`${process.env.CHALLENGES_SERVICE_URL}/challenges/assign`, {
+    data: { challengeId: wrongGrade.id, studentId: ids.student, assignedById: TEACHER_EMAIL, assignedByRole: 'teacher' },
+  });
+  expect(res.status()).toBe(400); // setup sanity: grade guard rejects it
+
+  const anchor = `Notif E2E T11 anchor ${Date.now()}`;
+  await teacherCreatesAssignment(request, anchor);
+  const page = await openAppAs(browser, 'student-notif');
+  await openBell(page);
+  await bellItemWithText(page, `New quiz: ${anchor}`);
+  await expect(bellItems(page).filter({ hasText: wrongGrade.title })).toHaveCount(0);
+});
+
+test('12. the unread badge matches the unread items, and drops when one is opened', async ({ browser, request }) => {
+  const title = `Notif E2E T12 ${Date.now()}`;
+  await teacherCreatesAssignment(request, title);
+  const page = await openAppAs(browser, 'parent-notif');
+  await openBell(page);
+  const item = await bellItemWithText(page, `New quiz for ${STUDENT_NAME}: ${title}`);
+
+  // No badge is rendered at 0; parent-notif never has 10+ unread in this spec, so it's a plain number.
+  const badge = page.getByTestId('header-bell-badge');
+  const badgeCount = async () => ((await badge.count()) ? Number((await badge.first().innerText()).trim()) : 0);
+  const unreadDots = () => bellItems(page).getByTestId('notif-unread-dot').count();
+  const before = await badgeCount();
+  expect(before).toBe(await unreadDots());
+
+  await item.first().click();
+  await expect(page.getByRole('dialog').getByText(title).first()).toBeVisible({ timeout: 45000 });
+  await expect.poll(badgeCount, { timeout: 20000 }).toBeLessThan(before);
+});
+
+test('13. legacy still works: deadline events show, and the bell falls back to the legacy feed when V2 is down', async ({ browser, request }) => {
+  const title = `Notif E2E T13 ${Date.now()}`;
+  await teacherCreatesAssignment(request, title);
+
+  // V2 up: the legacy-derived due-date event is still in the same bell.
+  const page = await openAppAs(browser, 'student-notif');
+  await openBell(page);
+  await bellItemWithText(page, `New quiz: ${title}`);
+  await bellItemWithText(page, `${title} — Quiz due`);
+
+  // V2 down (simulated outage of /notifications only): legacy assignment item, no V2 rows.
+  const down = await newPageAs(browser, 'student-notif');
+  await applyServiceOverrides(down.context());
+  await down.context().route(/\/notifications(\/|\?|$)/, route => route.fulfill({ status: 503, body: '{}' }));
+  await down.goto('/');
+  await dismissAnnouncementIfPresent(down);
+  await openBell(down);
+  await expect(bellItems(down).filter({ hasText: title }).first()).toBeVisible({ timeout: 40000 });
+  await expect(bellItems(down).filter({ hasText: 'New quiz:' })).toHaveCount(0);
 });
