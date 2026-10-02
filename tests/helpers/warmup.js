@@ -52,6 +52,7 @@ const SERVICES = {
   bedtimeStories:   ['BEDTIME_STORIES_SERVICE_URL',   'http://localhost:3011'],
   helpCenter:       ['HELP_SERVICE_URL',               'http://localhost:3013'],
   auth:             ['AUTH_SERVICE_URL',               'http://localhost:4001'],
+  timetableResources: ['TIMETABLE_RESOURCES_SERVICE_URL', 'http://localhost:3021'],
 };
 
 function resolveServiceUrls() {
