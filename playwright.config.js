@@ -59,10 +59,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       // Mic tests need fake-device launch args (below) - run only under
       // chromium-mic so they don't run twice.
-      testIgnore: /ai-coach-mic\.spec\.js/,
+      testIgnore: /(ai-coach|read-aloud)-mic\.spec\.js/,
     },
 
-    // Separate project for the AI Coach mic tests only. Chromium's fake
+    // Separate project for the mic tests (AI Coach, Read Aloud). Chromium's fake
     // media stream feeds the SAME fixture file into every getUserMedia()
     // call for the whole browser process, so it can't be scoped to one
     // test/page - it has to live in its own project instead, otherwise
@@ -79,7 +79,7 @@ export default defineConfig({
     // runs this project.
     {
       name: 'chromium-mic',
-      testMatch: /ai-coach-mic\.spec\.js/,
+      testMatch: /(ai-coach|read-aloud)-mic\.spec\.js/,
       use: {
         ...devices['Desktop Chrome'],
         channel: 'chrome',
