@@ -122,7 +122,7 @@ test.describe('Resources', () => {
       await expect(page.getByText('Last modified')).toBeVisible();
 
       // Grid view hides the list header but keeps the items.
-      await toggleView(page);
+      await page.getByRole('button', { name: 'Grid view' }).click();
       await expect(page.getByText('Last modified')).toHaveCount(0);
       await expect(page.getByText(`${prefix} Sports Day`, { exact: true })).toBeVisible();
     } finally {
@@ -152,8 +152,3 @@ test.describe('Resources', () => {
   });
 });
 
-// The list/grid toggle is the only icon button next to the breadcrumb.
-async function toggleView(page) {
-  const crumbRow = page.getByText('Library', { exact: true }).locator('xpath=ancestor::div[4]');
-  await crumbRow.locator('div[tabindex="0"]').last().click();
-}
