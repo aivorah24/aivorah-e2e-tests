@@ -85,3 +85,10 @@ export async function deleteResourcesByPrefix(schoolId, prefix) {
   }
   await supabaseAdmin.from('resource_files').delete().eq('school_id', schoolId).like('title', `${prefix}%`);
 }
+
+export async function timetableExists(schoolId, grade, section) {
+  const { data } = await supabaseAdmin
+    .from('class_timetables').select('id')
+    .eq('school_id', schoolId).eq('grade', grade).eq('section', section);
+  return (data || []).length > 0;
+}
