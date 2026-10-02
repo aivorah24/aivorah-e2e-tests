@@ -92,3 +92,21 @@ export function createFolderButton(page) {
 export function deleteIconInRow(page, name) {
   return page.getByText(name, { exact: true }).locator('xpath=ancestor::div[2]').locator('div[tabindex="0"]').last();
 }
+
+// The web layout renders each menu label twice (sidebar + the off-screen
+// mobile drawer); click whichever copy actually receives the click.
+export async function clickMenuItem(page, label) {
+  const items = page.getByText(label, { exact: true });
+  await expect(items.first()).toBeAttached({ timeout: 15000 });
+  const n = await items.count();
+  for (let i = 0; i < n; i++) {
+    try {
+      await items.nth(i).click({ trial: true, timeout: 2000 });
+      await items.nth(i).click();
+      return;
+    } catch {
+      // covered or hidden copy - try the next one
+    }
+  }
+  throw new Error(`No clickable "${label}" menu item`);
+}

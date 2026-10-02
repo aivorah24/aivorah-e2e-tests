@@ -18,7 +18,7 @@ import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.
 import { getSchoolIdByEmail, seedTimetable, deleteTimetable } from '../../helpers/timetableData.js';
 import {
   openTimetable, expectTimetableReady, periodsButton, downloadButton, setupDefaultButton,
-  clickCell, slotSubjectInput, slotRoomInput, slotSaveButton, slotClearButton, addSubjectButton,
+  clickCell, clickMenuItem, slotSubjectInput, slotRoomInput, slotSaveButton, slotClearButton, addSubjectButton,
 } from '../../helpers/timetableLocators.js';
 
 export const REQUIRED_ACCOUNTS = ['admin-a', 'teacher-a', 'teacher-b', 'parent-a', 'student-a'];
@@ -193,7 +193,7 @@ test.describe('Timetable', () => {
       const student = await newPageAs(browser, 'student-a');
       await student.goto('/dashboard');
       await dismissAnnouncementIfPresent(student);
-      await student.getByText('Timetable', { exact: true }).filter({ visible: true }).first().click();
+      await clickMenuItem(student, 'Timetable');
       await expectTimetableReady(student);
       await expect(student.getByText('Grade 3 A', { exact: true })).toBeVisible({ timeout: 15000 });
       await expect(student.getByText(subject)).toBeVisible({ timeout: 15000 });
