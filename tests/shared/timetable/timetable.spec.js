@@ -4,12 +4,12 @@
 //   - school admin: sets up the bell schedule and edits any slot
 //   - homeroom teacher: same, for their own class
 //   - any other teacher in the school: edits slots, not the bell schedule
-//   - parent: views their child's class only, no editing
+//   - parent / student: view their (child's) class only, no editing
 //
 // Each test owns one TSRA class, seeded and removed through the DB, so the
-// tests run in parallel. Classes: admin-a -> Grade 4 A / Grade 5 A (from the admin's grade list),
+// tests run in parallel. Classes: admin-a -> Grade 9 A / Grade 8 A,
 // teacher-a (homeroom of Grade 7 A) -> Grade 7 A, teacher-b -> PYP 4 B,
-// parent-a (child in Grade 3 A) -> Grade 3 A, and Grade 6 A for the blocked case.
+// parent-a and student-a (both Grade 3 A) -> Grade 3 A, and Grade 6 A for the blocked case.
 
 import { test, expect } from '@playwright/test';
 import { newPageAs } from '../../helpers/session.js';
@@ -21,7 +21,7 @@ import {
   clickCell, slotSubjectInput, slotRoomInput, slotSaveButton, slotClearButton, addSubjectButton,
 } from '../../helpers/timetableLocators.js';
 
-export const REQUIRED_ACCOUNTS = ['admin-a', 'teacher-a', 'teacher-b', 'parent-a'];
+export const REQUIRED_ACCOUNTS = ['admin-a', 'teacher-a', 'teacher-b', 'parent-a', 'student-a'];
 
 let schoolId;
 test.beforeAll(async () => {
@@ -38,12 +38,12 @@ test.describe('Timetable', () => {
   test.setTimeout(90000);
 
   test('school admin sets up the default bell schedule for a class with none', async ({ browser }) => {
-    const cls = { grade: 'Grade 4', section: 'A' };
+    const cls = { grade: 'Grade 9', section: 'A' };
     await deleteTimetable(schoolId, cls.grade, cls.section);
     try {
       const page = await newPageAs(browser, 'admin-a');
       await open(page);
-      await page.getByRole('button', { name: 'Grade 4', exact: true }).click();
+      await page.getByRole('button', { name: 'Grade 9', exact: true }).click();
       await page.getByRole('button', { name: 'A', exact: true }).click();
 
       await expect(page.getByText('Set up the bell schedule')).toBeVisible();
@@ -54,7 +54,7 @@ test.describe('Timetable', () => {
 
       await page.reload();
       await expectTimetableReady(page);
-      await page.getByRole('button', { name: 'Grade 4', exact: true }).click();
+      await page.getByRole('button', { name: 'Grade 9', exact: true }).click();
       await page.getByRole('button', { name: 'A', exact: true }).click();
       await expect(page.getByText('P1', { exact: true }).first()).toBeVisible({ timeout: 15000 });
       await expect(page.getByText('Set up the bell schedule')).toHaveCount(0);
@@ -64,12 +64,12 @@ test.describe('Timetable', () => {
   });
 
   test('school admin adds a period, and duplicate labels are rejected', async ({ browser }) => {
-    const cls = { grade: 'Grade 5', section: 'A' };
+    const cls = { grade: 'Grade 8', section: 'A' };
     await seedTimetable(schoolId, cls.grade, cls.section);
     try {
       const page = await newPageAs(browser, 'admin-a');
       await open(page);
-      await page.getByRole('button', { name: 'Grade 5', exact: true }).click();
+      await page.getByRole('button', { name: 'Grade 8', exact: true }).click();
       await page.getByRole('button', { name: 'A', exact: true }).click();
       await expect(page.getByText('P3', { exact: true }).first()).toBeVisible({ timeout: 15000 });
 
@@ -88,12 +88,12 @@ test.describe('Timetable', () => {
 
       await labels.last().fill('P4');
       await page.getByRole('button', { name: 'Save bell schedule' }).click();
-      await expect(page.getByText('Manage periods')).toHaveCount(0);
+      await expect(page.getByText('Manage periods')).toHaveCount(0, { timeout: 15000 });
       await expect(page.getByText('P4', { exact: true }).first()).toBeVisible({ timeout: 15000 });
 
       await page.reload();
       await expectTimetableReady(page);
-      await page.getByRole('button', { name: 'Grade 5', exact: true }).click();
+      await page.getByRole('button', { name: 'Grade 8', exact: true }).click();
       await page.getByRole('button', { name: 'A', exact: true }).click();
       await expect(page.getByText('P4', { exact: true }).first()).toBeVisible({ timeout: 15000 });
     } finally {
@@ -162,7 +162,8 @@ test.describe('Timetable', () => {
     }
   });
 
-  test('parent views their child\'s timetable read-only and downloads it as PDF', async ({ browser }) => {
+  test('parent and student view the class timetable read-only; parent downloads it as PDF', async ({ browser }) => {
+    test.setTimeout(150000);
     const cls = { grade: 'Grade 3', section: 'A' };
     const subject = `E2E-TT English ${Date.now()}`;
     await seedTimetable(schoolId, cls.grade, cls.section, [
@@ -187,6 +188,18 @@ test.describe('Timetable', () => {
         downloadButton(page).click(),
       ]);
       expect(download.suggestedFilename()).toBe('Grade 3 A Timetable.pdf');
+
+      // The student in that class sees the same timetable from the menu, also read-only.
+      const student = await newPageAs(browser, 'student-a');
+      await student.goto('/dashboard');
+      await dismissAnnouncementIfPresent(student);
+      await student.getByText('Timetable', { exact: true }).filter({ visible: true }).first().click();
+      await expectTimetableReady(student);
+      await expect(student.getByText('Grade 3 A', { exact: true })).toBeVisible({ timeout: 15000 });
+      await expect(student.getByText(subject)).toBeVisible({ timeout: 15000 });
+      await student.getByText(subject).click();
+      await expect(student.getByText('Room 12').last()).toBeVisible();
+      await expect(addSubjectButton(student)).toHaveCount(0);
     } finally {
       await deleteTimetable(schoolId, cls.grade, cls.section);
     }
