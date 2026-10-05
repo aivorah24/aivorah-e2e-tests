@@ -1,89 +1,94 @@
-// Parent Attendance Portal (/parent/attendance) - a school-linked parent sees
-// their child's Present/Absent/Late counts and this month's detailed logs.
+// Parent Attendance (/parent/attendance) and the dashboard Attendance card, on aivorah-attendance-service.
 //
-// The dashboard's Attendance Record card is already covered by
-// tests/parent/dashboard/weekly-snapshot/weekly-snapshot.spec.js (parent-f2/f3);
-// this file covers the separate Attendance Portal screen. It has no sidebar
-// entry (only an App.tsx linking path), so it is opened by URL.
-//
-// parent-f2 / student-parent-f2: display only (no writes).
-// parent-f4 / student-parent-f4: marks attendance. Its other spec (Subject
-// Performance quiz) never reads attendance, so the domains don't overlap.
+// Fixtures (scripts/seed-attendance-fixtures.mjs): parent-att -> att-1, att-2; parent-att-dash -> att-3.
+// Marks are set up as the class teacher (teacher-att) on dates only these tests use.
+// Rate = (present + late / 2) / total, the monolith's formula kept by the new service.
 
 import { test, expect } from '@playwright/test';
 import { applySession, statePath } from '../../helpers/auth.js';
-import { accountFor } from '../../helpers/accounts.js';
-import { getChildIdByParentEmail, markAttendance } from '../../helpers/api.js';
+import { getUserIdByEmail } from '../../helpers/api.js';
 import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
-import { parentAttendancePortal, statCard } from '../../helpers/attendanceLocators.js';
+import { assertAttendanceStat } from '../../helpers/assertAttendanceStat.js';
+import { markAttendance, studentEmail } from '../../helpers/attendanceApi.js';
+import { sidebarAttendanceLink, childChip, childChips, attendanceRate, historyRow } from '../../helpers/attendanceLocators.js';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3007';
-
-function todayISO() {
-  return new Date().toISOString().split('T')[0];
+async function idOf(request, account) {
+  return getUserIdByEmail(request, studentEmail(account));
 }
 
-// read-only expected-value lookup
-async function summaryFor(request, studentId) {
-  const res = await request.get(`${BACKEND_URL}/attendance/student/${studentId}/summary`);
-  return res.json();
+function count(page, status) {
+  return page.getByTestId(`attendance-count-${status}`);
 }
 
-async function openPortal(page) {
-  await page.goto('/parent/attendance');
-  await dismissAnnouncementIfPresent(page);
-  await expect(parentAttendancePortal(page)).toBeVisible({ timeout: 30000 });
-}
+test.describe('Parent Attendance', () => {
+  test.use({ storageState: statePath('parent-att') });
+  test.beforeEach(async ({ context }) => { await applySession(context, 'parent-att'); });
 
-async function expectStat(page, label, value) {
-  await expect(statCard(page, label).getByText(String(value), { exact: true })).toBeVisible({ timeout: 15000 });
-}
+  test('8. the parent menu has Attendance and it opens the Attendance page', async ({ page }) => {
+    await page.goto('/parent/dashboard');
+    await dismissAnnouncementIfPresent(page);
+    await sidebarAttendanceLink(page).click();
+    await expect(page).toHaveURL(/\/parent\/attendance/, { timeout: 15000 });
+    await expect(childChips(page).first()).toBeVisible({ timeout: 20000 });
+  });
 
-test.describe('Parent Attendance Portal - display (parent-f2)', () => {
-  const PARENT = 'parent-f2';
-  const STUDENT = 'student-parent-f2';
-  test.use({ storageState: statePath(PARENT) });
+  test('9. after the teacher marks the child, the parent sees the right counts, rate and history', async ({ page, request }) => {
+    const child = await idOf(request, 'student-att-1');
+    await markAttendance(request, { date: '2026-09-01', records: { [child]: 'present' } }); // setup
+    await markAttendance(request, { date: '2026-09-02', records: { [child]: 'absent' } });
+    await markAttendance(request, { date: '2026-09-03', records: { [child]: 'late' } });
 
-  test("shows the child's real Present / Absent / Late counts, or the empty message", async ({ context, page, request }) => {
-    const studentId = await getChildIdByParentEmail(request, {
-      parentEmail: accountFor(PARENT).email,
-      childEmail: accountFor(STUDENT).email,
-    });
-    const { summary } = await summaryFor(request, studentId);
+    await page.goto('/parent/attendance');
+    await dismissAnnouncementIfPresent(page);
+    await childChip(page, child).click();
+    await expect(count(page, 'present')).toHaveText('1', { timeout: 20000 });
+    await expect(count(page, 'absent')).toHaveText('1');
+    await expect(count(page, 'late')).toHaveText('1');
+    await expect(attendanceRate(page)).toContainText('50%');
+    await expect(historyRow(page, '2026-09-02')).toContainText(/absent/i);
+    await expect(historyRow(page, '2026-09-03')).toContainText(/late/i);
+  });
 
-    await applySession(context, PARENT);
-    await openPortal(page);
+  test('10. a child with no marks shows "No attendance recorded yet", not 100%', async ({ page, request }) => {
+    const child = await idOf(request, 'student-att-2'); // never marked by any spec
+    await page.goto('/parent/attendance');
+    await dismissAnnouncementIfPresent(page);
+    await childChip(page, child).click();
+    await expect(attendanceRate(page)).toContainText('No attendance recorded yet', { timeout: 20000 });
+    await expect(attendanceRate(page)).not.toContainText('100%');
+  });
 
-    if (summary.total === 0) {
-      await expect(page.getByText('Attendance is not yet updated by the school.')).toBeVisible({ timeout: 15000 });
-    } else {
-      await expectStat(page, 'Present', summary.present);
-      await expectStat(page, 'Absent', summary.absent);
-      await expectStat(page, 'Late', summary.late);
-      await expect(page.getByText(`${summary.ratePct}%`, { exact: true }).first()).toBeVisible();
-    }
+  test('11. the parent sees only their own children', async ({ page, request }) => {
+    const mine = await Promise.all(['student-att-1', 'student-att-2'].map((a) => idOf(request, a)));
+    const notMine = await idOf(request, 'student-att-3');
+    await page.goto('/parent/attendance');
+    await dismissAnnouncementIfPresent(page);
+    for (const id of mine) await expect(childChip(page, id)).toBeVisible({ timeout: 20000 });
+    await expect(childChip(page, notMine)).toHaveCount(0);
+    await expect(childChips(page)).toHaveCount(2);
   });
 });
 
-test.describe('Parent Attendance Portal - a new mark shows up (parent-f4)', () => {
-  const PARENT = 'parent-f4';
-  const STUDENT = 'student-parent-f4';
-  test.use({ storageState: statePath(PARENT) });
+test.describe('Parent dashboard Attendance card', () => {
+  test.use({ storageState: statePath('parent-att-dash') });
+  test.beforeEach(async ({ context }) => { await applySession(context, 'parent-att-dash'); });
 
-  test("a 'late' mark for today appears in the counts and in this month's detailed logs", async ({ context, page, request }) => {
-    const studentId = await getChildIdByParentEmail(request, {
-      parentEmail: accountFor(PARENT).email,
-      childEmail: accountFor(STUDENT).email,
-    });
-    // Setup: the teacher's mark (a different persona), made through the API.
-    await markAttendance(request, { date: todayISO(), studentId, status: 'late' });
-    const { summary } = await summaryFor(request, studentId);
+  test('12. the dashboard card and the Attendance page show the same numbers', async ({ page, request }) => {
+    const child = await idOf(request, 'student-att-3');
+    await markAttendance(request, { date: '2026-09-04', records: { [child]: 'present' } }); // setup
+    await markAttendance(request, { date: '2026-09-05', records: { [child]: 'absent' } });
 
-    await applySession(context, PARENT);
-    await openPortal(page);
+    await page.goto('/parent/dashboard');
+    await dismissAnnouncementIfPresent(page);
+    await assertAttendanceStat(page, 'Present', 1);
+    await assertAttendanceStat(page, 'Absent', 1);
+    await expect(page.getByText('Overall attendance: 50%', { exact: true })).toBeVisible({ timeout: 20000 });
 
-    await expectStat(page, 'Late', summary.late);
-    await expect(page.getByText('Detailed Logs', { exact: true })).toBeVisible();
-    await expect(page.getByText('Late arrival recorded. Student checked-in post homeroom.').first()).toBeVisible();
+    await page.goto('/parent/attendance');
+    await dismissAnnouncementIfPresent(page);
+    await childChip(page, child).click();
+    await expect(count(page, 'present')).toHaveText('1', { timeout: 20000 });
+    await expect(count(page, 'absent')).toHaveText('1');
+    await expect(attendanceRate(page)).toContainText('50%');
   });
 });

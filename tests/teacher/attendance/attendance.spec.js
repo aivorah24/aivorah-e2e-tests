@@ -1,66 +1,123 @@
-// Teacher Attendance - a school-linked teacher opens Attendance from the
-// sidebar, sees today's roster for their class, marks a student, saves, and
-// the mark is still there after a reload.
+// Teacher Attendance (/teacher/attendance) on aivorah-attendance-service.
 //
-// Phase-1 baseline for the Attendance migration (the feature is monolith-only:
-// ai-mentor/server/routes/attendance.js). Known when written (2026-10-05):
-//   - TeacherAttendance is not registered in TeacherNavigator and has no
-//     App.tsx linking path, so the sidebar's "Attendance" item opens nothing and
-//     there is no URL for it. The refactor is expected to add /teacher/attendance;
-//     these tests open that URL (sidebar clicks are flaky here, same reason
-//     scheduleLocators.js navigates by URL);
-//   - no E2E teacher has a class (/classes/mine is empty for teacher-a/b/d).
-// Both make these tests fail until the refactor lands.
+// Fixtures (scripts/seed-attendance-fixtures.mjs, E2E School Mutate, Grade 5):
+//   teacher-att      class teacher of section E2E-ATT
+//   teacher-att-b    class teacher of section E2E-ATT-B
+//   teacher-att-none no class
+// Section E2E-ATT holds att-1/2/3 (parent specs) and att-t1/t2 (ONLY these teacher specs mark them);
+// att-b1 is in E2E-ATT-B. Each test marks its own student/date pair, so they run in parallel.
 
 import { test, expect } from '@playwright/test';
 import { applySession, statePath } from '../../helpers/auth.js';
+import { getUserIdByEmail } from '../../helpers/api.js';
 import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
+import { markAttendance, studentEmail, todayISO, GRADE, SECTION_A, SECTION_B } from '../../helpers/attendanceApi.js';
 import {
-  sidebarAttendanceLink,
-  teacherAttendanceScreen,
-  saveAttendanceButton,
-  statCard,
+  sidebarAttendanceLink, classChip, classChips, dateInput, studentRow, studentRows,
+  statusButton, saveButton, saveMessage, emptyState,
 } from '../../helpers/attendanceLocators.js';
 
-const ACCOUNT = 'teacher-a';
+const EDIT_DATE = '2026-09-15';
 
-async function openAttendance(page) {
-  await page.goto('/teacher/attendance');
+async function idOf(request, account) {
+  return getUserIdByEmail(request, studentEmail(account));
+}
+
+async function openAttendance(page, query = '') {
+  await page.goto(`/teacher/attendance${query}`);
   await dismissAnnouncementIfPresent(page);
-  await expect(teacherAttendanceScreen(page)).toBeVisible({ timeout: 30000 });
 }
 
-async function statNumber(page, label) {
-  return Number(((await statCard(page, label).innerText()).match(/\d+/) || ['0'])[0]);
+async function expectSelected(locator) {
+  await expect(locator).toHaveAttribute('aria-selected', 'true', { timeout: 15000 });
 }
 
-test.describe('Teacher Attendance', () => {
-  test.use({ storageState: statePath(ACCOUNT) });
-  test.beforeEach(async ({ context }) => { await applySession(context, ACCOUNT); });
+test.describe('Teacher Attendance - class teacher', () => {
+  test.use({ storageState: statePath('teacher-att') });
+  test.beforeEach(async ({ context }) => { await applySession(context, 'teacher-att'); });
 
-  test('the sidebar lists Attendance, and the Attendance screen opens', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByText(/Good (morning|afternoon|evening),/).first()).toBeVisible({ timeout: 30000 });
-    await expect(sidebarAttendanceLink(page)).toBeVisible();
-    await openAttendance(page);
-    await expect(saveAttendanceButton(page)).toBeVisible();
+  test('1. the sidebar Attendance item opens the Attendance screen', async ({ page }) => {
+    await page.goto('/dashboard');
+    await dismissAnnouncementIfPresent(page);
+    await sidebarAttendanceLink(page).click();
+    await expect(page).toHaveURL(/\/teacher\/attendance/, { timeout: 15000 });
+    await expect(classChip(page, GRADE, SECTION_A)).toBeVisible({ timeout: 20000 });
   });
 
-  test('marking a student absent and saving is still shown after a reload', async ({ page }) => {
+  test('2. only the classes this teacher is class teacher of are listed', async ({ page }) => {
     await openAttendance(page);
-    // The first class is selected automatically. nth(0) is the "Absent" stat
-    // label; the per-student "Absent" buttons follow it.
-    const absent = page.getByText('Absent', { exact: true }).filter({ visible: true });
-    await expect(absent.nth(1), 'teacher-a needs a class with at least one student').toBeVisible({ timeout: 15000 });
+    await expect(classChip(page, GRADE, SECTION_A)).toBeVisible({ timeout: 20000 });
+    await expect(classChip(page, GRADE, SECTION_B)).toHaveCount(0);
+    await expect(classChips(page)).toHaveCount(1);
+  });
 
-    await absent.nth(1).click();
-    const absentCount = await statNumber(page, 'Absent');
-    expect(absentCount).toBeGreaterThan(0);
-    await saveAttendanceButton(page).click();
+  test("3. picking the class shows exactly that class's students", async ({ page, request }) => {
+    // read-only expected-value lookup
+    const inClass = await Promise.all(['student-att-1', 'student-att-2', 'student-att-3', 'student-att-t1', 'student-att-t2'].map((a) => idOf(request, a)));
+    const otherClass = await idOf(request, 'student-att-b1');
+
+    await openAttendance(page);
+    await classChip(page, GRADE, SECTION_A).click();
+    for (const id of inClass) await expect(studentRow(page, id)).toBeVisible({ timeout: 20000 });
+    await expect(studentRow(page, otherClass)).toHaveCount(0);
+    await expect(studentRows(page)).toHaveCount(inClass.length);
+  });
+
+  test('4. marking absent and late for today, saving, shows Saved and is still there after a reload', async ({ page, request }) => {
+    const t1 = await idOf(request, 'student-att-t1');
+    const t2 = await idOf(request, 'student-att-t2');
+    // setup: start today's marks from a known state
+    await markAttendance(request, { date: todayISO(), records: { [t1]: 'present', [t2]: 'present' } });
+
+    await openAttendance(page);
+    await classChip(page, GRADE, SECTION_A).click();
+    await statusButton(page, t1, 'absent').click();
+    await statusButton(page, t2, 'late').click();
+    await saveButton(page).click();
+    await expect(saveMessage(page)).toContainText(/saved/i, { timeout: 15000 });
 
     await page.reload();
     await dismissAnnouncementIfPresent(page);
-    await expect(teacherAttendanceScreen(page)).toBeVisible({ timeout: 30000 });
-    await expect(statCard(page, 'Absent').getByText(String(absentCount), { exact: true })).toBeVisible({ timeout: 15000 });
+    await classChip(page, GRADE, SECTION_A).click();
+    await expectSelected(statusButton(page, t1, 'absent'));
+    await expectSelected(statusButton(page, t2, 'late'));
+  });
+
+  test('5. an earlier day that already has marks can be changed, and the change stays', async ({ page, request }) => {
+    const t1 = await idOf(request, 'student-att-t1');
+    await markAttendance(request, { date: EDIT_DATE, records: { [t1]: 'present' } }); // setup
+
+    await openAttendance(page);
+    await classChip(page, GRADE, SECTION_A).click();
+    await dateInput(page).fill(EDIT_DATE);
+    await expectSelected(statusButton(page, t1, 'present'));
+    await statusButton(page, t1, 'absent').click();
+    await saveButton(page).click();
+    await expect(saveMessage(page)).toContainText(/saved/i, { timeout: 15000 });
+
+    await page.reload();
+    await dismissAnnouncementIfPresent(page);
+    await classChip(page, GRADE, SECTION_A).click();
+    await dateInput(page).fill(EDIT_DATE);
+    await expectSelected(statusButton(page, t1, 'absent'));
+  });
+
+  test("7. another teacher's class can't be opened: an error shows and no students are listed", async ({ page, request }) => {
+    const b1 = await idOf(request, 'student-att-b1');
+    await openAttendance(page, `?grade=${encodeURIComponent(GRADE)}&section=${encodeURIComponent(SECTION_B)}`);
+    await expect(page.getByTestId('attendance-error')).toBeVisible({ timeout: 20000 });
+    await expect(studentRow(page, b1)).toHaveCount(0);
+    await expect(saveButton(page)).toHaveCount(0);
+  });
+});
+
+test.describe('Teacher Attendance - teacher with no class', () => {
+  test.use({ storageState: statePath('teacher-att-none') });
+  test.beforeEach(async ({ context }) => { await applySession(context, 'teacher-att-none'); });
+
+  test('6. a teacher who is nobody\'s class teacher sees "No classes assigned"', async ({ page }) => {
+    await openAttendance(page);
+    await expect(emptyState(page)).toContainText(/no classes assigned/i, { timeout: 20000 });
+    await expect(classChips(page)).toHaveCount(0);
   });
 });

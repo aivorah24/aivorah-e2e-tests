@@ -351,6 +351,16 @@ export const ACCOUNTS = {
     school: 'TSRA',
     mutable: true,
   },
+  // ── Attendance (scripts/seed-attendance-fixtures.mjs) ──
+  // E2E School Mutate, Grade 5. teacher-att is class teacher of section E2E-ATT,
+  // teacher-att-b of E2E-ATT-B; teacher-att-none has no class. Students never log in:
+  // att-1/att-2 -> parent-att, att-3 -> parent-att-dash, att-t1/att-t2 are marked only
+  // by the teacher specs, att-b1 sits in the other section.
+  'teacher-att': { email: process.env.E2E_TEACHER_ATT, role: 'teacher', school: 'E2E School Mutate', mutable: true },
+  'teacher-att-b': { email: process.env.E2E_TEACHER_ATT_B, role: 'teacher', school: 'E2E School Mutate', mutable: false },
+  'teacher-att-none': { email: process.env.E2E_TEACHER_ATT_NONE, role: 'teacher', school: 'E2E School Mutate', mutable: false },
+  'parent-att': { email: process.env.E2E_PARENT_ATT, role: 'parent', school: 'E2E School Mutate', mutable: true },
+  'parent-att-dash': { email: process.env.E2E_PARENT_ATT_DASH, role: 'parent', school: 'E2E School Mutate', mutable: true },
 };
 
 // Which spec file owns which mutable account. Keeping this written down means
