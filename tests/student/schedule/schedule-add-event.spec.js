@@ -341,4 +341,49 @@ test.describe('Student Schedule - Add Event modal', () => {
     await modalCancelButton(page).click();
     await expect(addEventModal(page)).toBeHidden({ timeout: 15000 });
   });
+
+  // Regression: the dropdown was clipped by the modal's form ScrollView, so the
+  // options were unreachable. Clicks by coordinates like a real user - Playwright's
+  // own click() auto-scrolls and would hide the bug.
+  for (const [name, picker, optionTime] of [
+    ['Start', startTimePicker, '09:15'],
+    ['End', endTimePicker, '10:15'],
+  ]) {
+    test(`${name} time dropdown options are visible and selectable without scrolling`, async ({ page }) => {
+      await addEventButton(page).click();
+      await expect(addEventModal(page)).toBeVisible();
+
+      await picker(page).click();
+      const option = timePickerOption(picker(page), to12h(optionTime));
+      const box = await option.boundingBox();
+      expect(box, 'option must be rendered').toBeTruthy();
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+      const hitsOption = await option.evaluate(
+        (el, [x, y]) => el.contains(document.elementFromPoint(x, y)),
+        [cx, cy],
+      );
+      expect(hitsOption, `${to12h(optionTime)} must be on screen and not covered`).toBe(true);
+
+      await page.mouse.click(cx, cy);
+      await expect(picker(page).getByText(to12h(optionTime), { exact: true })).toHaveCount(1);
+
+      await modalCancelButton(page).click();
+      await expect(addEventModal(page)).toBeHidden({ timeout: 15000 });
+    });
+  }
+
+  test('opening one time picker closes the other', async ({ page }) => {
+    await addEventButton(page).click();
+    await expect(addEventModal(page)).toBeVisible();
+
+    await startTimePicker(page).click();
+    await expect(startTimePicker(page).getByText('▲')).toHaveCount(1);
+    await endTimePicker(page).click();
+    await expect(endTimePicker(page).getByText('▲')).toHaveCount(1);
+    await expect(startTimePicker(page).getByText('▲')).toHaveCount(0);
+
+    await modalCancelButton(page).click();
+    await expect(addEventModal(page)).toBeHidden({ timeout: 15000 });
+  });
 });
