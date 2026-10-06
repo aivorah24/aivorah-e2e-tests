@@ -11,11 +11,14 @@ import { test, expect } from '@playwright/test';
 import { applySession, statePath } from '../../helpers/auth.js';
 import { getUserIdByEmail } from '../../helpers/api.js';
 import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
+import { clickMenuItem } from '../../helpers/timetableLocators.js';
 import { markAttendance, studentEmail, todayISO, GRADE, SECTION_A, SECTION_B } from '../../helpers/attendanceApi.js';
 import {
-  sidebarAttendanceLink, classChip, classChips, dateInput, studentRow, studentRows,
+  classChip, classChips, dateInput, studentRow, studentRows,
   statusButton, saveButton, saveMessage, emptyState,
 } from '../../helpers/attendanceLocators.js';
+
+export const REQUIRED_ACCOUNTS = ['teacher-att', 'teacher-att-none'];
 
 const EDIT_DATE = '2026-09-15';
 
@@ -39,7 +42,7 @@ test.describe('Teacher Attendance - class teacher', () => {
   test('1. the sidebar Attendance item opens the Attendance screen', async ({ page }) => {
     await page.goto('/dashboard');
     await dismissAnnouncementIfPresent(page);
-    await sidebarAttendanceLink(page).click();
+    await clickMenuItem(page, 'Attendance');
     await expect(page).toHaveURL(/\/teacher\/attendance/, { timeout: 15000 });
     await expect(classChip(page, GRADE, SECTION_A)).toBeVisible({ timeout: 20000 });
   });

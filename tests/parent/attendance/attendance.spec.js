@@ -8,9 +8,12 @@ import { test, expect } from '@playwright/test';
 import { applySession, statePath } from '../../helpers/auth.js';
 import { getUserIdByEmail } from '../../helpers/api.js';
 import { dismissAnnouncementIfPresent } from '../../helpers/dismissAnnouncement.js';
+import { clickMenuItem } from '../../helpers/timetableLocators.js';
 import { assertAttendanceStat } from '../../helpers/assertAttendanceStat.js';
 import { markAttendance, studentEmail } from '../../helpers/attendanceApi.js';
 import { sidebarAttendanceLink, childChip, childChips, attendanceRate, historyRow } from '../../helpers/attendanceLocators.js';
+
+export const REQUIRED_ACCOUNTS = ['parent-att', 'parent-att-dash'];
 
 async function idOf(request, account) {
   return getUserIdByEmail(request, studentEmail(account));
@@ -27,7 +30,7 @@ test.describe('Parent Attendance', () => {
   test('8. the parent menu has Attendance and it opens the Attendance page', async ({ page }) => {
     await page.goto('/parent/dashboard');
     await dismissAnnouncementIfPresent(page);
-    await sidebarAttendanceLink(page).click();
+    await clickMenuItem(page, 'Attendance');
     await expect(page).toHaveURL(/\/parent\/attendance/, { timeout: 15000 });
     await expect(childChips(page).first()).toBeVisible({ timeout: 20000 });
   });
