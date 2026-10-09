@@ -412,7 +412,7 @@ export async function completeChallenge(request, assignmentId, { studentId, scor
 // is required with its asterisk - confirmed by reading the POST handler).
 export async function createScheduleEvent(
   request,
-  { title, date, startTime, endTime, studentId, tag, note, type },
+  { title, date, startTime, endTime, studentId, tag, note, type, createdBy, creatorEmail },
 ) {
   const res = await request.post(SCHEDULE_SERVICE_URL + '/schedule', {
     data: {
@@ -421,7 +421,9 @@ export async function createScheduleEvent(
       startTime,
       endTime: endTime ?? '',
       studentId,
-      createdBy: studentId,
+      // Teacher/parent setup passes createdBy + creatorEmail, like their schedule screens do.
+      createdBy: createdBy ?? studentId,
+      ...(creatorEmail ? { creatorEmail } : {}),
       tag: tag ?? null,
       note: note ?? '',
       type: type ?? 'study',
