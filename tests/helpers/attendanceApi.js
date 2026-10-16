@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { accountFor, PASSWORD } from './accounts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const ATTENDANCE_URL = process.env.ATTENDANCE_SERVICE_URL || 'https://aivorah-attendance-service.onrender.com';
+export const ATTENDANCE_URL = process.env.ATTENDANCE_SERVICE_URL || 'https://aivorah-attendance-service-y3t6.onrender.com';
 export const GRADE = 'Grade 5';
 export const SECTION_A = 'E2E-ATT';
 export const SECTION_B = 'E2E-ATT-B';
