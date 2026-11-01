@@ -141,7 +141,7 @@ test.describe('Teacher Dashboard - Student Overview', () => {
   // "before" snapshot and when the Students screen re-fetches its own fresh
   // copy a few seconds later - a real race, not a selector bug. Flagging
   // this rather than silently living with occasional false failures; worth
-  // deciding with Sai whether student-teacher-a's completed_topics should
+  // deciding with the product owner whether student-teacher-a's completed_topics should
   // be reset between runs, or whether these two tests need their own
   // dedicated, less-shared account.
 
@@ -200,7 +200,7 @@ test.describe('Teacher Dashboard - Student Overview', () => {
 
   // KNOWN BUG: Recent Activity rows shouldn't need to navigate anywhere -
   // they're an informational feed, not a workflow entry point (confirmed
-  // with Sai). The app currently DOES navigate to Student Progress on click
+  // with the product owner). The app currently DOES navigate to Student Progress on click
   // (TeacherDashboardScreen's actRowCompact TouchableOpacity). Written for
   // the CORRECT (no-navigation) behavior on purpose, so it shows red until
   // the app is fixed - same convention as tests/student/dashboard.spec.js.

@@ -157,3 +157,8 @@ vite.config.ts.timestamp-*
 # start of a run. Both are regenerated every run - never commit either.
 /.auth/
 /.profile-snapshot.json
+
+# AI assistant files (kept local, never committed)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
