@@ -70,9 +70,6 @@ web_modules/
 .env.*
 !.env.example
 
-# Local notes/knowledge - never push
-CLAUDE.md
-
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -158,7 +155,6 @@ vite.config.ts.timestamp-*
 /.auth/
 /.profile-snapshot.json
 
-# AI assistant files (kept local, never committed)
-CLAUDE.md
+# Personal AI assistant files (CLAUDE.md itself is shared and committed)
 CLAUDE.local.md
-.claude/
+.claude/settings.local.json
