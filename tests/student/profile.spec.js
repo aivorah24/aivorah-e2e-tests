@@ -70,7 +70,7 @@ const GRADES_BY_CURRICULUM = {
   'IB DP': ['Grade 11', 'Grade 12'],
   CBSE: ALL_GRADES,
   ICSE: ALL_GRADES,
-  // NOTE: the app gives Cambridge only Grade 1-10, but Sai's spec says 1-12.
+  // NOTE: the app gives Cambridge only Grade 1-10, but the product spec says 1-12.
   // We assert what the app does today here, and there's a separate failing
   // test further down for the missing Grade 11 / 12.
   Cambridge: ALL_GRADES.slice(3, 13),
@@ -325,7 +325,7 @@ test.describe('Student Profile', () => {
       });
     }
 
-    // KNOWN GAP: Sai's spec says Cambridge covers Grade 1-12, but the app's
+    // KNOWN GAP: the product spec says Cambridge covers Grade 1-12, but the app's
     // getGradesForCurriculum() stops at Grade 10. Written for the expected
     // behaviour on purpose, so it stays RED until the app is fixed (or the
     // spec is corrected).
