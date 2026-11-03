@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, staging]
+  pull_request:
+    branches: [main, master, staging]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Lint test code
+        run: npm run lint
+
+  # Running the actual Playwright suite against live Staging (Vercel + Render
+  # + Test Supabase) is deliberately NOT wired here yet — that requires
+  # Staging env vars as GitHub Actions secrets, which is explicitly the next
+  # phase (E2E integration), not part of this CI-only rollout.

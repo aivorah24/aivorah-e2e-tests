@@ -109,10 +109,14 @@ test.describe('Teacher Dashboard - Error State', () => {
     // so the only observable proof of "silent failure" is that nothing
     // changed and nothing crashed.
     await expect(page.getByText('Student Overview')).toBeVisible();
+    // toHaveText()'s auto-retry doesn't apply here — we're comparing two
+    // already-captured snapshots (before vs after the drag), not asserting
+    // a live locator against a known string.
     const totalStudentsAfter = await page
       .getByText('Total Students')
       .locator('xpath=preceding-sibling::*[1]')
       .innerText();
+    // eslint-disable-next-line playwright/prefer-web-first-assertions
     expect(totalStudentsAfter).toBe(totalStudentsBefore);
   });
 

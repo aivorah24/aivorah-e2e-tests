@@ -213,8 +213,7 @@ test.describe('Student Challenges - Accessibility', () => {
     const firstOption = block.locator('div[dir="auto"]').nth(2);
     await firstOption.click();
 
-    const ariaChecked = await firstOption.getAttribute('aria-checked');
-    expect(ariaChecked, 'selected option should expose aria-checked="true"').toBe('true');
+    await expect(firstOption, 'selected option should expose aria-checked="true"').toHaveAttribute('aria-checked', 'true');
   });
 
   test('Submit Answers has an accessible name and reflects disabled/enabled state to assistive tech', async ({
